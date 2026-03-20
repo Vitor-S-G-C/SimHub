@@ -1,0 +1,77 @@
+:root {
+  --bg: #edf4fb;
+  --panel: rgba(255, 255, 255, 0.74);
+  --border: rgba(148, 175, 201, 0.34);
+  --text: #4e5b6c;
+  --text-strong: #102033;
+  --text-muted: #617289;
+  --accent: #1866f1;
+  --accent-soft: rgba(24, 102, 241, 0.12);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: #c8d8ea;
+  --shadow: 0 28px 60px rgba(24, 45, 72, 0.14);
+  --sans: 'Trebuchet MS', 'Segoe UI', sans-serif;
+  --heading: 'Trebuchet MS', 'Segoe UI', sans-serif;
+
+  font: 18px/1.5 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(76, 165, 255, 0.22), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(16, 32, 51, 0.12), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #edf4fb 52%, #e6eef7 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+h1,
+h2,
+strong,
+button,
+label {
+  font-family: var(--heading);
+  color: var(--text-strong);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 6vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  :root {
+    font-size: 16px;
+  }
+}
