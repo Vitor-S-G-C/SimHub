@@ -172,6 +172,27 @@
   letter-spacing: -0.02em;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.welcome-copy {
+  display: grid;
+  text-align: right;
+  line-height: 1.2;
+}
+
+.welcome-copy strong {
+  font-size: 0.96rem;
+}
+
+.welcome-copy small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 .ghost-button,
 .primary-button,
 .tab,
@@ -241,6 +262,31 @@ td button:hover {
   display: grid;
   gap: 8px;
   text-align: left;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notification-close {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #e2b662;
+  background: #fff0d0;
+  color: #6b4500;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.notification-close:hover {
+  background: #ffe5b7;
 }
 
 .tab-nav {

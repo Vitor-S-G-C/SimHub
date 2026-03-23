@@ -6,7 +6,6 @@ initDatabase()
 
 const app = express()
 const PORT = Number(process.env.PORT || 8080)
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '123456'
 
 app.use(cors({ origin: ['http://localhost:5173'], credentials: false }))
 app.use(express.json())
@@ -45,21 +44,6 @@ const sendValidationError = (res, message) => res.status(400).json({ message })
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', db: databasePath })
-})
-
-app.post('/api/auth/login', (req, res) => {
-  const nomeFantasia = String(req.body?.nomeFantasia || '').trim()
-  const senha = String(req.body?.senha || '').trim()
-
-  if (!nomeFantasia || !senha) {
-    return sendValidationError(res, 'Informe nome fantasia e senha.')
-  }
-
-  if (senha !== ADMIN_PASSWORD) {
-    return sendValidationError(res, 'Senha invalida.')
-  }
-
-  return res.json({ nomeFantasia })
 })
 
 app.get('/api/clientes', (_req, res) => {
@@ -210,12 +194,6 @@ app.post('/api/linhas', (req, res) => {
         empresa,
         ativa,
       )
-
-    db
-      .prepare(
-        'INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(info.lastInsertRowid, clienteId, valorCliente, dataPagamento, 'aberto')
 
     return info.lastInsertRowid
   })
@@ -368,6 +346,45 @@ app.get('/api/contas', (_req, res) => {
   res.json(rows.map(mapConta))
 })
 
+app.post('/api/contas', (req, res) => {
+  const clienteId = Number(req.body?.clienteId)
+  const valor = Number(req.body?.valor)
+  const dataVencimento = String(req.body?.dataVencimento || '').trim()
+
+  if (!clienteId) {
+    return sendValidationError(res, 'Cliente invalido para a conta.')
+  }
+
+  if (Number.isNaN(valor) || valor <= 0) {
+    return sendValidationError(res, 'Valor invalido para a conta.')
+  }
+
+  if (!dataVencimento) {
+    return sendValidationError(res, 'Data de vencimento invalida.')
+  }
+
+  const clienteExiste = db.prepare('SELECT id FROM clientes WHERE id = ?').get(clienteId)
+  if (!clienteExiste) {
+    return sendValidationError(res, 'Cliente informado nao existe.')
+  }
+
+  try {
+    const info = db
+      .prepare(
+        'INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(null, clienteId, valor, dataVencimento, 'aberto')
+
+    const row = db
+      .prepare('SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber WHERE id = ?')
+      .get(info.lastInsertRowid)
+
+    return res.status(201).json(mapConta(row))
+  } catch {
+    return res.status(500).json({ message: 'Erro ao criar conta.' })
+  }
+})
+
 app.patch('/api/contas/:id/consolidar', (req, res) => {
   const id = Number(req.params.id)
   if (!id) return sendValidationError(res, 'ID de conta invalido.')
@@ -375,6 +392,42 @@ app.patch('/api/contas/:id/consolidar', (req, res) => {
   const info = db
     .prepare("UPDATE contas_receber SET status = 'consolidado' WHERE id = ?")
     .run(id)
+
+  if (!info.changes) {
+    return res.status(404).json({ message: 'Conta nao encontrada.' })
+  }
+
+  const row = db
+    .prepare('SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber WHERE id = ?')
+    .get(id)
+
+  return res.json(mapConta(row))
+})
+
+app.delete('/api/contas/:id', (req, res) => {
+  const id = Number(req.params.id)
+  if (!id) return sendValidationError(res, 'ID de conta invalido.')
+
+  const info = db.prepare('DELETE FROM contas_receber WHERE id = ?').run(id)
+  if (!info.changes) {
+    return res.status(404).json({ message: 'Conta nao encontrada.' })
+  }
+
+  return res.status(204).send()
+})
+
+app.patch('/api/contas/:id', (req, res) => {
+  const id = Number(req.params.id)
+  const dataVencimento = String(req.body?.dataVencimento || '').trim()
+  const valor = Number(req.body?.valor)
+
+  if (!id) return sendValidationError(res, 'ID de conta invalido.')
+  if (!dataVencimento) return sendValidationError(res, 'Data de vencimento invalida.')
+  if (Number.isNaN(valor) || valor <= 0) return sendValidationError(res, 'Valor invalido.')
+
+  const info = db
+    .prepare('UPDATE contas_receber SET data_vencimento = ?, valor = ? WHERE id = ?')
+    .run(dataVencimento, valor, id)
 
   if (!info.changes) {
     return res.status(404).json({ message: 'Conta nao encontrada.' })

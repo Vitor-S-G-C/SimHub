@@ -43,7 +43,7 @@ const initDatabase = () => {
 
     CREATE TABLE IF NOT EXISTS contas_receber (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      linha_id INTEGER NOT NULL,
+      linha_id INTEGER,
       cliente_id INTEGER NOT NULL,
       valor REAL NOT NULL,
       data_vencimento TEXT NOT NULL,
@@ -53,6 +53,35 @@ const initDatabase = () => {
       FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
     );
   `)
+
+  const linhaIdInfo = db
+    .prepare("PRAGMA table_info(contas_receber)")
+    .all()
+    .find((column) => column.name === 'linha_id')
+
+  // Migrate old databases where linha_id was required so manual contas can be created.
+  if (linhaIdInfo?.notnull === 1) {
+    db.exec(`
+      CREATE TABLE contas_receber_novo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        linha_id INTEGER,
+        cliente_id INTEGER NOT NULL,
+        valor REAL NOT NULL,
+        data_vencimento TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('aberto', 'consolidado')) DEFAULT 'aberto',
+        criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (linha_id) REFERENCES linhas(id) ON DELETE CASCADE,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
+      );
+
+      INSERT INTO contas_receber_novo (id, linha_id, cliente_id, valor, data_vencimento, status, criado_em)
+      SELECT id, linha_id, cliente_id, valor, data_vencimento, status, criado_em
+      FROM contas_receber;
+
+      DROP TABLE contas_receber;
+      ALTER TABLE contas_receber_novo RENAME TO contas_receber;
+    `)
+  }
 }
 
 export { db, initDatabase, databasePath }

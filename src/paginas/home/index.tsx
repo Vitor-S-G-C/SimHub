@@ -1,113 +1,30 @@
 
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 
-type Aba = 'clientes' | 'linhas' | 'infoCliente' | 'infoLinha' | 'contas'
-
-type Cliente = {
-  id: number
-  nome: string
-  nomeFantasia: string
-  cnpj: string
-}
-
-type Linha = {
-  id: number
-  numero: string
-  valorMem: number
-  valorCliente: number
-  usuario: string
-  fidelidade: string
-  clienteId: number
-  dataPagamento: string
-  contaLinha: string
-  empresa: string
-  ativa: boolean
-}
-
-type ContaReceber = {
-  id: number
-  linhaId: number
-  clienteId: number
-  valor: number
-  dataVencimento: string
-  status: 'aberto' | 'consolidado'
-}
-
-type ClientePayload = {
-  nome: string
-  nomeFantasia: string
-  cnpj: string
-}
-
-type LinhaPayload = {
-  numero: string
-  valorMem: string
-  valorCliente: string
-  usuario: string
-  fidelidade: string
-  clienteId: number
-  dataPagamento: string
-  contaLinha: string
-  empresa: string
-  ativa: boolean
-}
-
-type ApiError = {
-  message?: string
-}
-
-type LoginResponse = {
-  nomeFantasia: string
-}
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8080/api'
-
-const readApiError = async (response: Response) => {
-  try {
-    const errorData = (await response.json()) as ApiError
-    return errorData.message ?? 'Erro ao processar requisicao.'
-  } catch {
-    return 'Erro ao processar requisicao.'
-  }
-}
-
-const apiRequest = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  })
-
-  if (!response.ok) {
-    throw new Error(await readApiError(response))
-  }
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  return (await response.json()) as T
-}
-
-const toCurrency = (value: number) =>
-  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-const diasParaVencimento = (data: string) => {
-  const hoje = new Date()
-  const vencimento = new Date(`${data}T00:00:00`)
-  const diff = vencimento.getTime() - hoje.getTime()
-
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
-}
+import { apiRequest } from './api'
+import { ClientesTab } from './components/ClientesTab'
+import { ContasTab } from './components/ContasTab'
+import { InfoClienteTab } from './components/InfoClienteTab'
+import { InfoLinhaTab } from './components/InfoLinhaTab'
+import { LinhasTab } from './components/LinhasTab'
+import { TabNav } from './components/TabNav'
+import {
+  type Aba,
+  type Cliente,
+  type ClienteFormState,
+  type ClientePayload,
+  type ContaReceber,
+  type Linha,
+  type LinhaFormState,
+  type LinhaPayload,
+  type NovaContaPayload,
+  type RenovarContaPayload,
+  emptyClienteForm,
+  emptyLinhaForm,
+} from './types'
+import { diasParaVencimento, toCurrency } from './utils'
 
 function Homepage() {
-  const [logado, setLogado] = useState(false)
-  const [nomeFantasia, setNomeFantasia] = useState('')
-  const [senha, setSenha] = useState('')
-  const [mensagem, setMensagem] = useState('')
   const [abaAtiva, setAbaAtiva] = useState<Aba>('clientes')
 
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -125,24 +42,27 @@ function Homepage() {
   const [clienteEmEdicao, setClienteEmEdicao] = useState<number | null>(null)
   const [linhaEmEdicao, setLinhaEmEdicao] = useState<number | null>(null)
 
-  const [clienteForm, setClienteForm] = useState({
-    nome: '',
-    nomeFantasia: '',
-    cnpj: '',
-  })
-  const [linhaForm, setLinhaForm] = useState({
-    numero: '',
-    valorMem: '',
-    valorCliente: '',
-    usuario: '',
-    fidelidade: '',
-    clienteId: 1,
-    dataPagamento: '',
-    contaLinha: '',
-    empresa: '',
-    ativa: true,
-  })
+  const [clienteForm, setClienteForm] = useState<ClienteFormState>(emptyClienteForm)
+  const [linhaForm, setLinhaForm] = useState<LinhaFormState>(emptyLinhaForm)
   const [feedbackPainel, setFeedbackPainel] = useState('')
+  const [notificacoesFechadas, setNotificacoesFechadas] = useState<number[]>([])
+
+  const atualizarClienteForm = (field: keyof ClienteFormState, value: string) => {
+    setClienteForm((estadoAtual) => ({
+      ...estadoAtual,
+      [field]: value,
+    }))
+  }
+
+  const atualizarLinhaForm = <K extends keyof LinhaFormState>(
+    field: K,
+    value: LinhaFormState[K],
+  ) => {
+    setLinhaForm((estadoAtual) => ({
+      ...estadoAtual,
+      [field]: value,
+    }))
+  }
 
   const carregarDados = useCallback(async () => {
     setCarregandoDados(true)
@@ -174,10 +94,23 @@ function Homepage() {
   }, [])
 
   useEffect(() => {
-    if (logado) {
-      void carregarDados()
+    void carregarDados()
+  }, [carregarDados])
+
+  useEffect(() => {
+    if (!clientes.length) return
+
+    const clienteSelecionadoExiste = clientes.some(
+      (cliente) => cliente.id === linhaForm.clienteId,
+    )
+
+    if (!clienteSelecionadoExiste) {
+      setLinhaForm((estadoAtual) => ({
+        ...estadoAtual,
+        clienteId: clientes[0].id,
+      }))
     }
-  }, [carregarDados, logado])
+  }, [clientes, linhaForm.clienteId])
 
   const clientesFiltrados = useMemo(() => {
     const termo = buscaCliente.trim().toLowerCase()
@@ -249,30 +182,21 @@ function Homepage() {
       .filter((conta) => diasParaVencimento(conta.dataVencimento) <= 5)
   }, [contas])
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const notificacoesVisiveis = useMemo(() => {
+    return notificacoes.filter((conta) => !notificacoesFechadas.includes(conta.id))
+  }, [notificacoes, notificacoesFechadas])
 
-    const nomeNormalizado = nomeFantasia.trim()
+  useEffect(() => {
+    const idsAtivos = new Set(notificacoes.map((conta) => conta.id))
+    setNotificacoesFechadas((estadoAtual) =>
+      estadoAtual.filter((id) => idsAtivos.has(id)),
+    )
+  }, [notificacoes])
 
-    if (!nomeNormalizado || !senha.trim()) {
-      setMensagem('Preencha o nome fantasia e a senha para continuar.')
-      return
-    }
-
-    try {
-      const resposta = await apiRequest<LoginResponse>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ nomeFantasia: nomeNormalizado, senha: senha.trim() }),
-      })
-
-      setMensagem(`Acesso liberado para ${resposta.nomeFantasia}.`)
-      setLogado(true)
-      setFeedbackPainel('')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha no login.'
-      setMensagem(message)
-      setLogado(false)
-    }
+  const fecharNotificacao = (contaId: number) => {
+    setNotificacoesFechadas((estadoAtual) =>
+      estadoAtual.includes(contaId) ? estadoAtual : [...estadoAtual, contaId],
+    )
   }
 
   const salvarCliente = async (event: FormEvent<HTMLFormElement>) => {
@@ -308,7 +232,7 @@ function Homepage() {
         setFeedbackPainel('Cliente cadastrado com sucesso.')
       }
 
-      setClienteForm({ nome: '', nomeFantasia: '', cnpj: '' })
+      setClienteForm(emptyClienteForm())
       setClienteEmEdicao(null)
       await carregarDados()
     } catch (error) {
@@ -370,6 +294,17 @@ function Homepage() {
       return
     }
 
+    if (!clientes.length) {
+      setFeedbackPainel('Cadastre pelo menos um cliente antes de criar uma linha.')
+      return
+    }
+
+    const clienteValido = clientes.some((cliente) => cliente.id === linhaForm.clienteId)
+    if (!clienteValido) {
+      setFeedbackPainel('Selecione um cliente valido para a linha.')
+      return
+    }
+
     try {
       const payload: LinhaPayload = {
         numero: linhaForm.numero.trim(),
@@ -399,18 +334,7 @@ function Homepage() {
       }
 
       setLinhaEmEdicao(null)
-      setLinhaForm({
-        numero: '',
-        valorMem: '',
-        valorCliente: '',
-        usuario: '',
-        fidelidade: '',
-        clienteId: clientes[0]?.id ?? 1,
-        dataPagamento: '',
-        contaLinha: '',
-        empresa: '',
-        ativa: true,
-      })
+      setLinhaForm(emptyLinhaForm(clientes[0]?.id ?? 1))
       await carregarDados()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao salvar linha.'
@@ -464,68 +388,43 @@ function Homepage() {
     }
   }
 
-  if (!logado) {
-    return (
-      <main className="login-shell">
-        <section className="login-panel">
-          <div className="login-copy">
-            <span className="login-badge">HELIX</span>
-            <h1>Painel de acesso</h1>
-            <p>
-              Entre com o nome fantasia e a senha para acessar sua area de
-              gestao.
-            </p>
+  const criarConta = async (payload: NovaContaPayload) => {
+    try {
+      const contaCriada = await apiRequest<ContaReceber>('/contas', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      setContas((estadoAtual) => [contaCriada, ...estadoAtual])
+      setFeedbackPainel('Conta a receber cadastrada com sucesso.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao cadastrar conta.'
+      setFeedbackPainel(message)
+    }
+  }
 
-            <div className="login-highlights" aria-hidden="true">
-              <div>
-                <strong>Clientes</strong>
-                <span>Controle completo de contas e linhas vinculadas.</span>
-              </div>
-              <div>
-                <strong>Financeiro</strong>
-                <span>Visao das cobrancas abertas e consolidadas.</span>
-              </div>
-            </div>
-          </div>
+  const salvarConta = async (id: number, payload: RenovarContaPayload) => {
+    try {
+      const contaAtualizada = await apiRequest<ContaReceber>(
+        `/contas/${id}`,
+        { method: 'PATCH', body: JSON.stringify(payload) },
+      )
+      setContas((estadoAtual) =>
+        estadoAtual.map((conta) => (conta.id === id ? contaAtualizada : conta)),
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao renovar conta.'
+      setFeedbackPainel(message)
+    }
+  }
 
-          <form className="login-form" onSubmit={handleSubmit}>
-            <label className="field-group" htmlFor="nomeFantasia">
-              <span>Nome fantasia</span>
-              <input
-                id="nomeFantasia"
-                name="nomeFantasia"
-                type="text"
-                placeholder="Digite o nome fantasia"
-                value={nomeFantasia}
-                onChange={(event) => setNomeFantasia(event.target.value)}
-              />
-            </label>
-
-            <label className="field-group" htmlFor="senha">
-              <span>Senha</span>
-              <input
-                id="senha"
-                name="senha"
-                type="password"
-                placeholder="Digite sua senha"
-                value={senha}
-                onChange={(event) => setSenha(event.target.value)}
-              />
-            </label>
-
-            <button type="submit" className="login-button">
-              Entrar
-            </button>
-
-            {mensagem ? (
-              <p className="login-feedback" role="status">
-                {mensagem}
-              </p>
-            ) : null}
-          </form>
-        </section>
-      </main>
-    )
+  const deletarConta = async (id: number) => {
+    try {
+      await apiRequest(`/contas/${id}`, { method: 'DELETE' })
+      setContas((estadoAtual) => estadoAtual.filter((conta) => conta.id !== id))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao apagar conta.'
+      setFeedbackPainel(message)
+    }
   }
 
   return (
@@ -534,11 +433,17 @@ function Homepage() {
         <div>
           <span className="login-badge">HELIX SaaS</span>
           <h2>Gestao de linhas e cobranca</h2>
-          <p>Nome fantasia autenticado: {nomeFantasia}</p>
+          <p>Painel aberto sem login.</p>
         </div>
-        <button className="ghost-button" onClick={() => setLogado(false)}>
-          Sair
-        </button>
+        <div className="topbar-actions">
+          <div className="welcome-copy">
+            <strong>Bem vindo Ednei</strong>
+            <small>Velho da lancha</small>
+          </div>
+          <button className="ghost-button" onClick={() => window.location.reload()}>
+            Sair
+          </button>
+        </div>
       </header>
 
       <section className="stats-grid">
@@ -564,464 +469,99 @@ function Homepage() {
         </article>
       </section>
 
-      {notificacoes.length > 0 ? (
+      {notificacoesVisiveis.length > 0 ? (
         <section className="notification-strip" role="status">
-          {notificacoes.slice(0, 3).map((conta) => {
+          {notificacoesVisiveis.slice(0, 3).map((conta) => {
             const cliente = clientes.find((item) => item.id === conta.clienteId)
             const linha = linhas.find((item) => item.id === conta.linhaId)
             const dias = diasParaVencimento(conta.dataVencimento)
 
             return (
-              <p key={conta.id}>
-                Vencimento proximo: {cliente?.nomeFantasia} / {linha?.numero} em {dias} dia(s).
-              </p>
+              <div key={conta.id} className="notification-item">
+                <p>
+                  Vencimento proximo: {cliente?.nomeFantasia} / {linha?.numero} em {dias} dia(s).
+                </p>
+                <button
+                  type="button"
+                  className="notification-close"
+                  aria-label="Fechar notificacao"
+                  onClick={() => fecharNotificacao(conta.id)}
+                >
+                  x
+                </button>
+              </div>
             )
           })}
         </section>
       ) : null}
 
-      <nav className="tab-nav" aria-label="Navegacao principal">
-        <button
-          className={abaAtiva === 'clientes' ? 'tab active' : 'tab'}
-          onClick={() => setAbaAtiva('clientes')}
-        >
-          Clientes
-        </button>
-        <button
-          className={abaAtiva === 'linhas' ? 'tab active' : 'tab'}
-          onClick={() => setAbaAtiva('linhas')}
-        >
-          Linhas
-        </button>
-        <button
-          className={abaAtiva === 'infoCliente' ? 'tab active' : 'tab'}
-          onClick={() => setAbaAtiva('infoCliente')}
-        >
-          Info Cliente
-        </button>
-        <button
-          className={abaAtiva === 'infoLinha' ? 'tab active' : 'tab'}
-          onClick={() => setAbaAtiva('infoLinha')}
-        >
-          Info Linha
-        </button>
-        <button
-          className={abaAtiva === 'contas' ? 'tab active' : 'tab'}
-          onClick={() => setAbaAtiva('contas')}
-        >
-          Contas a Receber
-        </button>
-      </nav>
+      <TabNav abaAtiva={abaAtiva} onChange={setAbaAtiva} />
 
       <section className="panel-area">
         {carregandoDados ? <p className="login-feedback">Carregando dados...</p> : null}
 
         {abaAtiva === 'clientes' ? (
-          <div className="panel-grid two-columns">
-            <article className="panel-card">
-              <h3>{clienteEmEdicao ? 'Editar cliente' : 'Cadastrar cliente'}</h3>
-              <form className="stack-form" onSubmit={salvarCliente}>
-                <input
-                  type="text"
-                  placeholder="Nome"
-                  value={clienteForm.nome}
-                  onChange={(event) =>
-                    setClienteForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      nome: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Nome fantasia"
-                  value={clienteForm.nomeFantasia}
-                  onChange={(event) =>
-                    setClienteForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      nomeFantasia: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="CNPJ"
-                  value={clienteForm.cnpj}
-                  onChange={(event) =>
-                    setClienteForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      cnpj: event.target.value,
-                    }))
-                  }
-                />
-                <button className="primary-button" type="submit">
-                  {clienteEmEdicao ? 'Salvar alteracoes' : 'Cadastrar'}
-                </button>
-              </form>
-            </article>
-
-            <article className="panel-card">
-              <h3>Clientes cadastrados</h3>
-              <input
-                type="search"
-                placeholder="Buscar por nome, fantasia ou CNPJ"
-                value={buscaCliente}
-                onChange={(event) => setBuscaCliente(event.target.value)}
-              />
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nome fantasia</th>
-                      <th>CNPJ</th>
-                      <th>Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesFiltrados.map((cliente) => (
-                      <tr key={cliente.id}>
-                        <td>{cliente.nomeFantasia}</td>
-                        <td>{cliente.cnpj}</td>
-                        <td className="actions-cell">
-                          <button onClick={() => editarCliente(cliente)}>Editar</button>
-                          <button onClick={() => excluirCliente(cliente.id)}>Excluir</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-          </div>
+          <ClientesTab
+            clienteEmEdicao={clienteEmEdicao}
+            clienteForm={clienteForm}
+            buscaCliente={buscaCliente}
+            clientesFiltrados={clientesFiltrados}
+            onSubmit={salvarCliente}
+            onClienteFormChange={atualizarClienteForm}
+            onBuscaClienteChange={setBuscaCliente}
+            onEditarCliente={editarCliente}
+            onExcluirCliente={excluirCliente}
+          />
         ) : null}
 
         {abaAtiva === 'linhas' ? (
-          <div className="panel-grid two-columns">
-            <article className="panel-card">
-              <h3>{linhaEmEdicao ? 'Editar linha' : 'Cadastrar linha'}</h3>
-              <form className="stack-form" onSubmit={salvarLinha}>
-                <input
-                  type="text"
-                  placeholder="Numero da linha"
-                  value={linhaForm.numero}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      numero: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Valor pago MEM"
-                  value={linhaForm.valorMem}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      valorMem: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Valor cobrado cliente"
-                  value={linhaForm.valorCliente}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      valorCliente: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Usuario da linha"
-                  value={linhaForm.usuario}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      usuario: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="date"
-                  value={linhaForm.fidelidade}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      fidelidade: event.target.value,
-                    }))
-                  }
-                />
-                <select
-                  value={linhaForm.clienteId}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      clienteId: Number(event.target.value),
-                    }))
-                  }
-                >
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nomeFantasia}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  value={linhaForm.dataPagamento}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      dataPagamento: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Conta da linha"
-                  value={linhaForm.contaLinha}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      contaLinha: event.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Empresa registrada"
-                  value={linhaForm.empresa}
-                  onChange={(event) =>
-                    setLinhaForm((estadoAtual) => ({
-                      ...estadoAtual,
-                      empresa: event.target.value,
-                    }))
-                  }
-                />
-                <label className="toggle-row" htmlFor="ativa">
-                  <span>Linha ativa</span>
-                  <input
-                    id="ativa"
-                    type="checkbox"
-                    checked={linhaForm.ativa}
-                    onChange={(event) =>
-                      setLinhaForm((estadoAtual) => ({
-                        ...estadoAtual,
-                        ativa: event.target.checked,
-                      }))
-                    }
-                  />
-                </label>
-                <button className="primary-button" type="submit">
-                  {linhaEmEdicao ? 'Salvar alteracoes' : 'Cadastrar'}
-                </button>
-              </form>
-            </article>
-
-            <article className="panel-card">
-              <h3>Linhas cadastradas</h3>
-              <input
-                type="search"
-                placeholder="Buscar por numero, usuario ou cliente"
-                value={buscaLinha}
-                onChange={(event) => setBuscaLinha(event.target.value)}
-              />
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Numero</th>
-                      <th>Usuario</th>
-                      <th>Cliente</th>
-                      <th>Status</th>
-                      <th>Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linhasFiltradas.map((linha) => {
-                      const cliente = clientes.find((item) => item.id === linha.clienteId)
-                      return (
-                        <tr key={linha.id}>
-                          <td>{linha.numero}</td>
-                          <td>{linha.usuario}</td>
-                          <td>{cliente?.nomeFantasia ?? '-'}</td>
-                          <td>{linha.ativa ? 'Ativa' : 'Inativa'}</td>
-                          <td className="actions-cell">
-                            <button onClick={() => editarLinha(linha)}>Editar</button>
-                            <button onClick={() => excluirLinha(linha.id)}>Excluir</button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-          </div>
+          <LinhasTab
+            linhaEmEdicao={linhaEmEdicao}
+            linhaForm={linhaForm}
+            clientes={clientes}
+            buscaLinha={buscaLinha}
+            linhasFiltradas={linhasFiltradas}
+            onSubmit={salvarLinha}
+            onLinhaFormChange={atualizarLinhaForm}
+            onBuscaLinhaChange={setBuscaLinha}
+            onEditarLinha={editarLinha}
+            onExcluirLinha={excluirLinha}
+          />
         ) : null}
 
         {abaAtiva === 'infoCliente' ? (
-          <article className="panel-card">
-            <h3>Pagina de informacoes do cliente</h3>
-            <div className="inline-filters">
-              <select
-                value={clienteSelecionadoId}
-                onChange={(event) => setClienteSelecionadoId(Number(event.target.value))}
-              >
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nomeFantasia}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="search"
-                placeholder="Pesquisar por numero ou usuario"
-                value={buscaInfoClienteLinha}
-                onChange={(event) => setBuscaInfoClienteLinha(event.target.value)}
-              />
-            </div>
-
-            {clienteSelecionado ? (
-              <div className="info-card-grid">
-                <div className="soft-card">
-                  <span>Nome</span>
-                  <strong>{clienteSelecionado.nome}</strong>
-                </div>
-                <div className="soft-card">
-                  <span>Nome fantasia</span>
-                  <strong>{clienteSelecionado.nomeFantasia}</strong>
-                </div>
-                <div className="soft-card">
-                  <span>CNPJ</span>
-                  <strong>{clienteSelecionado.cnpj}</strong>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Numero</th>
-                    <th>Usuario</th>
-                    <th>Valor MEM</th>
-                    <th>Valor cliente</th>
-                    <th>Fidelidade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linhasDoClienteSelecionado.map((linha) => (
-                    <tr key={linha.id}>
-                      <td>{linha.numero}</td>
-                      <td>{linha.usuario}</td>
-                      <td>{toCurrency(linha.valorMem)}</td>
-                      <td>{toCurrency(linha.valorCliente)}</td>
-                      <td>{linha.fidelidade}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
+          <InfoClienteTab
+            clientes={clientes}
+            clienteSelecionadoId={clienteSelecionadoId}
+            clienteSelecionado={clienteSelecionado}
+            buscaInfoClienteLinha={buscaInfoClienteLinha}
+            linhasDoClienteSelecionado={linhasDoClienteSelecionado}
+            onClienteSelecionadoIdChange={setClienteSelecionadoId}
+            onBuscaInfoClienteLinhaChange={setBuscaInfoClienteLinha}
+          />
         ) : null}
 
         {abaAtiva === 'infoLinha' ? (
-          <article className="panel-card">
-            <h3>Pagina de informacoes da linha</h3>
-            <input
-              type="search"
-              placeholder="Pesquisar por numero ou usuario"
-              value={buscaInfoLinha}
-              onChange={(event) => setBuscaInfoLinha(event.target.value)}
-            />
-
-            <div className="line-cards">
-              {linhasInfoFiltradas.map((linha) => {
-                const cliente = clientes.find((item) => item.id === linha.clienteId)
-
-                return (
-                  <article key={linha.id} className="line-card">
-                    <h4>{linha.numero}</h4>
-                    <p>Usuario: {linha.usuario}</p>
-                    <p>Cliente: {cliente?.nomeFantasia ?? '-'}</p>
-                    <p>Conta: {linha.contaLinha}</p>
-                    <p>Empresa: {linha.empresa}</p>
-                    <p>Fidelidade: {linha.fidelidade}</p>
-                    <p>Pagamento: {linha.dataPagamento}</p>
-                    <p>Valor MEM: {toCurrency(linha.valorMem)}</p>
-                    <p>Valor Cliente: {toCurrency(linha.valorCliente)}</p>
-                    <p>Status: {linha.ativa ? 'Ativa' : 'Inativa (mantida para historico)'}</p>
-                  </article>
-                )
-              })}
-            </div>
-          </article>
+          <InfoLinhaTab
+            linhasInfoFiltradas={linhasInfoFiltradas}
+            clientes={clientes}
+            buscaInfoLinha={buscaInfoLinha}
+            onBuscaInfoLinhaChange={setBuscaInfoLinha}
+          />
         ) : null}
 
         {abaAtiva === 'contas' ? (
-          <article className="panel-card">
-            <h3>Contas a receber</h3>
-            <input
-              type="search"
-              placeholder="Pesquisar por linha ou nome do cliente"
-              value={buscaContas}
-              onChange={(event) => setBuscaContas(event.target.value)}
-            />
-
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cliente</th>
-                    <th>Linha</th>
-                    <th>Valor</th>
-                    <th>Vencimento</th>
-                    <th>Status</th>
-                    <th>Baixa</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contasFiltradas.map((conta) => {
-                    const cliente = clientes.find((item) => item.id === conta.clienteId)
-                    const linha = linhas.find((item) => item.id === conta.linhaId)
-
-                    return (
-                      <tr key={conta.id}>
-                        <td>{cliente?.nomeFantasia ?? '-'}</td>
-                        <td>{linha?.numero ?? '-'}</td>
-                        <td>{toCurrency(conta.valor)}</td>
-                        <td>{conta.dataVencimento}</td>
-                        <td>
-                          <span
-                            className={
-                              conta.status === 'aberto' ? 'status-open' : 'status-done'
-                            }
-                          >
-                            {conta.status}
-                          </span>
-                        </td>
-                        <td>
-                          {conta.status === 'aberto' ? (
-                            <button onClick={() => consolidarConta(conta.id)}>
-                              Consolidar
-                            </button>
-                          ) : (
-                            <span>Ok</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </article>
+          <ContasTab
+            contasFiltradas={contasFiltradas}
+            clientes={clientes}
+            linhas={linhas}
+            buscaContas={buscaContas}
+            onBuscaContasChange={setBuscaContas}
+            onCriarConta={criarConta}
+            onConsolidarConta={consolidarConta}
+            onSalvarConta={salvarConta}
+            onDeletarConta={deletarConta}
+          />
         ) : null}
 
         {feedbackPainel ? <p className="login-feedback">{feedbackPainel}</p> : null}
