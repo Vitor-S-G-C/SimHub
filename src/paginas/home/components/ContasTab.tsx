@@ -7,7 +7,7 @@ import type {
   NovaContaPayload,
   RenovarContaPayload,
 } from '../types'
-import { toCurrency } from '../utils'
+import { toCurrency, toDateBr } from '../utils'
 
 type ContasTabProps = {
   contasFiltradas: ContaReceber[]
@@ -182,7 +182,7 @@ export function ContasTab({
                     <td>{cliente?.nomeFantasia ?? '-'}</td>
                     <td>{linha?.numero ?? '-'}</td>
                     <td>{toCurrency(conta.valor)}</td>
-                    <td>{conta.dataVencimento}</td>
+                    <td>{toDateBr(conta.dataVencimento)}</td>
                     <td>
                       <span className={conta.status === 'aberto' ? 'status-open' : 'status-done'}>
                         {conta.status}

@@ -22,6 +22,8 @@ const initDatabase = () => {
       nome TEXT NOT NULL,
       nome_fantasia TEXT NOT NULL,
       cnpj TEXT NOT NULL UNIQUE,
+      atualizado_em TEXT,
+      atualizado_por TEXT,
       criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -37,6 +39,8 @@ const initDatabase = () => {
       conta_linha TEXT NOT NULL,
       empresa TEXT NOT NULL,
       ativa INTEGER NOT NULL DEFAULT 1,
+      atualizado_em TEXT,
+      atualizado_por TEXT,
       criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
     );
@@ -81,6 +85,25 @@ const initDatabase = () => {
       DROP TABLE contas_receber;
       ALTER TABLE contas_receber_novo RENAME TO contas_receber;
     `)
+  }
+
+  const clienteColumns = db.prepare('PRAGMA table_info(clientes)').all()
+  const linhaColumns = db.prepare('PRAGMA table_info(linhas)').all()
+
+  if (!clienteColumns.some((column) => column.name === 'atualizado_em')) {
+    db.exec('ALTER TABLE clientes ADD COLUMN atualizado_em TEXT')
+  }
+
+  if (!clienteColumns.some((column) => column.name === 'atualizado_por')) {
+    db.exec('ALTER TABLE clientes ADD COLUMN atualizado_por TEXT')
+  }
+
+  if (!linhaColumns.some((column) => column.name === 'atualizado_em')) {
+    db.exec('ALTER TABLE linhas ADD COLUMN atualizado_em TEXT')
+  }
+
+  if (!linhaColumns.some((column) => column.name === 'atualizado_por')) {
+    db.exec('ALTER TABLE linhas ADD COLUMN atualizado_por TEXT')
   }
 }
 

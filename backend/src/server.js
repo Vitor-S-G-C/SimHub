@@ -15,6 +15,8 @@ const mapCliente = (row) => ({
   nome: row.nome,
   nomeFantasia: row.nome_fantasia,
   cnpj: row.cnpj,
+  atualizadoEm: row.atualizado_em ?? null,
+  atualizadoPor: row.atualizado_por ?? null,
 })
 
 const mapLinha = (row) => ({
@@ -29,6 +31,8 @@ const mapLinha = (row) => ({
   contaLinha: row.conta_linha,
   empresa: row.empresa,
   ativa: Boolean(row.ativa),
+  atualizadoEm: row.atualizado_em ?? null,
+  atualizadoPor: row.atualizado_por ?? null,
 })
 
 const mapConta = (row) => ({
@@ -47,7 +51,9 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.get('/api/clientes', (_req, res) => {
-  const rows = db.prepare('SELECT id, nome, nome_fantasia, cnpj FROM clientes ORDER BY id DESC').all()
+  const rows = db
+    .prepare('SELECT id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por FROM clientes ORDER BY id DESC')
+    .all()
   res.json(rows.map(mapCliente))
 })
 
@@ -86,9 +92,14 @@ app.put('/api/clientes/:id', (req, res) => {
   }
 
   try {
+    const updatedBy = String(req.header('x-user') || 'Sistema').trim() || 'Sistema'
+    const updatedAt = new Date().toISOString()
+
     const info = db
-      .prepare('UPDATE clientes SET nome = ?, nome_fantasia = ?, cnpj = ? WHERE id = ?')
-      .run(nome, nomeFantasia, cnpj, id)
+      .prepare(
+        'UPDATE clientes SET nome = ?, nome_fantasia = ?, cnpj = ?, atualizado_em = ?, atualizado_por = ? WHERE id = ?',
+      )
+      .run(nome, nomeFantasia, cnpj, updatedAt, updatedBy, id)
 
     if (!info.changes) {
       return res.status(404).json({ message: 'Cliente nao encontrado.' })
@@ -97,7 +108,9 @@ app.put('/api/clientes/:id', (req, res) => {
     db.prepare('UPDATE linhas SET cliente_id = ? WHERE cliente_id = ?').run(id, id)
     db.prepare('UPDATE contas_receber SET cliente_id = ? WHERE cliente_id = ?').run(id, id)
 
-    const row = db.prepare('SELECT id, nome, nome_fantasia, cnpj FROM clientes WHERE id = ?').get(id)
+    const row = db
+      .prepare('SELECT id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por FROM clientes WHERE id = ?')
+      .get(id)
     return res.json(mapCliente(row))
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
@@ -128,7 +141,7 @@ app.get('/api/linhas', (_req, res) => {
   const rows = db
     .prepare(`
       SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
-             data_pagamento, conta_linha, empresa, ativa
+              data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
       FROM linhas
       ORDER BY id DESC
     `)
@@ -258,12 +271,16 @@ app.put('/api/linhas/:id', (req, res) => {
   }
 
   const tx = db.transaction(() => {
+    const updatedBy = String(req.header('x-user') || 'Sistema').trim() || 'Sistema'
+    const updatedAt = new Date().toISOString()
+
     const info = db
       .prepare(
         `
         UPDATE linhas
         SET numero = ?, valor_mem = ?, valor_cliente = ?, usuario = ?, fidelidade = ?,
-            cliente_id = ?, data_pagamento = ?, conta_linha = ?, empresa = ?, ativa = ?
+            cliente_id = ?, data_pagamento = ?, conta_linha = ?, empresa = ?, ativa = ?,
+            atualizado_em = ?, atualizado_por = ?
         WHERE id = ?
       `,
       )
@@ -278,6 +295,8 @@ app.put('/api/linhas/:id', (req, res) => {
         contaLinha,
         empresa,
         ativa,
+        updatedAt,
+        updatedBy,
         id,
       )
 
@@ -308,7 +327,7 @@ app.put('/api/linhas/:id', (req, res) => {
       .prepare(
         `
         SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
-               data_pagamento, conta_linha, empresa, ativa
+           data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
         FROM linhas
         WHERE id = ?
       `,

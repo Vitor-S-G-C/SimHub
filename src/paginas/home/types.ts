@@ -5,6 +5,8 @@ export type Cliente = {
   nome: string
   nomeFantasia: string
   cnpj: string
+  atualizadoEm: string | null
+  atualizadoPor: string | null
 }
 
 export type Linha = {
@@ -19,6 +21,8 @@ export type Linha = {
   contaLinha: string
   empresa: string
   ativa: boolean
+  atualizadoEm: string | null
+  atualizadoPor: string | null
 }
 
 export type ContaReceber = {

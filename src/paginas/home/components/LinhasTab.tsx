@@ -3,7 +3,6 @@ import type { FormEventHandler } from 'react'
 import type { Cliente, Linha, LinhaFormState } from '../types'
 
 type LinhasTabProps = {
-  linhaEmEdicao: number | null
   linhaForm: LinhaFormState
   clientes: Cliente[]
   buscaLinha: string
@@ -11,12 +10,9 @@ type LinhasTabProps = {
   onSubmit: FormEventHandler<HTMLFormElement>
   onLinhaFormChange: <K extends keyof LinhaFormState>(field: K, value: LinhaFormState[K]) => void
   onBuscaLinhaChange: (value: string) => void
-  onEditarLinha: (linha: Linha) => void
-  onExcluirLinha: (id: number) => void
 }
 
 export function LinhasTab({
-  linhaEmEdicao,
   linhaForm,
   clientes,
   buscaLinha,
@@ -24,13 +20,11 @@ export function LinhasTab({
   onSubmit,
   onLinhaFormChange,
   onBuscaLinhaChange,
-  onEditarLinha,
-  onExcluirLinha,
 }: LinhasTabProps) {
   return (
     <div className="panel-grid two-columns">
       <article className="panel-card">
-        <h3>{linhaEmEdicao ? 'Editar linha' : 'Cadastrar linha'}</h3>
+        <h3>Cadastrar linha</h3>
         <form className="stack-form" onSubmit={onSubmit}>
           <label className="field-group" htmlFor="linha-numero">
             <span>Numero da linha (telefone/chip)</span>
@@ -44,7 +38,7 @@ export function LinhasTab({
           </label>
 
           <label className="field-group" htmlFor="linha-valor-mem">
-            <span>Valor pago para MEM</span>
+            <span>Valor pago</span>
             <input
               id="linha-valor-mem"
               type="number"
@@ -56,7 +50,7 @@ export function LinhasTab({
           </label>
 
           <label className="field-group" htmlFor="linha-valor-cliente">
-            <span>Valor cobrado do cliente</span>
+            <span>Valor cobrado</span>
             <input
               id="linha-valor-cliente"
               type="number"
@@ -148,7 +142,7 @@ export function LinhasTab({
             />
           </label>
           <button className="primary-button" type="submit" disabled={clientes.length === 0}>
-            {linhaEmEdicao ? 'Salvar alteracoes' : 'Cadastrar'}
+            Cadastrar
           </button>
         </form>
       </article>
@@ -181,10 +175,7 @@ export function LinhasTab({
                     <td>{linha.usuario}</td>
                     <td>{cliente?.nomeFantasia ?? '-'}</td>
                     <td>{linha.ativa ? 'Ativa' : 'Inativa'}</td>
-                    <td className="actions-cell">
-                      <button onClick={() => onEditarLinha(linha)}>Editar</button>
-                      <button onClick={() => onExcluirLinha(linha.id)}>Excluir</button>
-                    </td>
+                    <td>Gerenciar na aba Info Linha</td>
                   </tr>
                 )
               })}
