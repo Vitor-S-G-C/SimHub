@@ -1,25 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 :root {
-  --bg: #edf4fb;
-  --panel: rgba(255, 255, 255, 0.74);
-  --border: rgba(148, 175, 201, 0.34);
-  --text: #4e5b6c;
-  --text-strong: #102033;
-  --text-muted: #617289;
-  --accent: #1866f1;
-  --accent-soft: rgba(24, 102, 241, 0.12);
-  --input-bg: rgba(255, 255, 255, 0.9);
-  --input-border: #c8d8ea;
-  --shadow: 0 28px 60px rgba(24, 45, 72, 0.14);
-  --sans: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  --heading: 'Trebuchet MS', 'Segoe UI', sans-serif;
+  --bg-base: #f6f1e9;
+  --bg-panel: rgba(255, 251, 245, 0.82);
+  --bg-panel-strong: rgba(254, 248, 238, 0.94);
+  --border: rgba(102, 85, 64, 0.28);
+  --text: #5a4b3e;
+  --text-strong: #2a1e16;
+  --text-muted: #7a6654;
+  --accent: #c74a31;
+  --accent-soft: rgba(199, 74, 49, 0.16);
+  --accent-alt: #0f6b5c;
+  --input-bg: rgba(255, 255, 255, 0.88);
+  --input-border: rgba(146, 121, 98, 0.44);
+  --shadow: 0 24px 60px rgba(73, 47, 24, 0.15);
+  --sans: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --heading: 'Fraunces', Georgia, serif;
 
   font: 18px/1.5 var(--sans);
   letter-spacing: 0.01em;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(76, 165, 255, 0.22), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(16, 32, 51, 0.12), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #edf4fb 52%, #e6eef7 100%);
+    radial-gradient(circle at 8% 4%, rgba(255, 180, 107, 0.38), transparent 26%),
+    radial-gradient(circle at 92% 10%, rgba(33, 164, 140, 0.22), transparent 24%),
+    radial-gradient(circle at 88% 86%, rgba(199, 74, 49, 0.18), transparent 34%),
+    linear-gradient(170deg, #fff8ee 0%, #f6f1e9 48%, #eee3d4 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -33,6 +38,7 @@
 body {
   margin: 0;
   min-width: 320px;
+  background: transparent;
 }
 
 h1,
@@ -53,6 +59,46 @@ h1 {
 
 p {
   margin: 0;
+}
+
+#root::before,
+#root::after {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: auto;
+  border-radius: 999px;
+  filter: blur(0.5px);
+  pointer-events: none;
+}
+
+#root::before {
+  width: 280px;
+  height: 280px;
+  right: -60px;
+  top: 18%;
+  background: radial-gradient(circle, rgba(15, 107, 92, 0.24), rgba(15, 107, 92, 0));
+  animation: driftY 14s ease-in-out infinite;
+}
+
+#root::after {
+  width: 340px;
+  height: 340px;
+  left: -90px;
+  bottom: 8%;
+  background: radial-gradient(circle, rgba(199, 74, 49, 0.24), rgba(199, 74, 49, 0));
+  animation: driftY 11s ease-in-out infinite reverse;
+}
+
+@keyframes driftY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-18px);
+  }
 }
 
 a {

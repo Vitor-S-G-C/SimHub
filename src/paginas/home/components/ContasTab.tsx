@@ -95,14 +95,14 @@ export function ContasTab({
 
   return (
     <article className="panel-card">
-      <h3>Contas a receber</h3>
+      <h3>Contas</h3>
       <div className="actions-cell" style={{ marginBottom: '1rem' }}>
         <button
           className="primary-button"
           onClick={abrirCadastroConta}
           disabled={clientes.length === 0}
         >
-          Nova conta a receber
+          Nova conta
         </button>
       </div>
 

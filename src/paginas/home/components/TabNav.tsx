@@ -10,7 +10,7 @@ const tabs: Array<{ id: Aba; label: string }> = [
   { id: 'linhas', label: 'Linhas' },
   { id: 'infoCliente', label: 'Info Cliente' },
   { id: 'infoLinha', label: 'Info Linha' },
-  { id: 'contas', label: 'Contas a Receber' },
+  { id: 'contas', label: 'Contas' },
 ]
 
 export function TabNav({ abaAtiva, onChange }: TabNavProps) {
