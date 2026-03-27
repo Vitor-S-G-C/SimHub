@@ -38,7 +38,7 @@ export function ClientesTab({
           />
           <input
             type="text"
-            placeholder="CNPJ"
+            placeholder="CPF ou CNPJ"
             value={clienteForm.cnpj}
             onChange={(event) => onClienteFormChange('cnpj', event.target.value)}
           />
@@ -52,7 +52,7 @@ export function ClientesTab({
         <h3>Clientes cadastrados</h3>
         <input
           type="search"
-          placeholder="Buscar por nome, fantasia ou CNPJ"
+          placeholder="Buscar por nome, fantasia, CPF ou CNPJ"
           value={buscaCliente}
           onChange={(event) => onBuscaClienteChange(event.target.value)}
         />
@@ -61,7 +61,7 @@ export function ClientesTab({
             <thead>
               <tr>
                 <th>Nome fantasia</th>
-                <th>CNPJ</th>
+                <th>CPF/CNPJ</th>
                 <th>Acoes</th>
               </tr>
             </thead>

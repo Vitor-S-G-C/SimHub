@@ -17,8 +17,16 @@ export const normalizeSearch = (value: string) =>
     .trim()
     .toLowerCase()
 
-export const maskCnpj = (value: string) => {
+export const maskCpfOrCnpj = (value: string) => {
   const onlyDigits = value.replace(/\D/g, '').slice(0, 14)
+
+  if (onlyDigits.length <= 11) {
+    return onlyDigits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+  }
+
   return onlyDigits
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
@@ -26,7 +34,30 @@ export const maskCnpj = (value: string) => {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
-export const isValidCnpj = (value: string) => {
+const isValidCpf = (value: string) => {
+  const cpf = value.replace(/\D/g, '')
+  if (cpf.length !== 11) return false
+  if (/^(\d)\1+$/.test(cpf)) return false
+
+  const calcDigit = (base: string, factor: number) => {
+    const sum = base
+      .split('')
+      .reduce((acc, digit) => {
+        const result = acc + Number(digit) * factor
+        factor -= 1
+        return result
+      }, 0)
+    const result = (sum * 10) % 11
+    return result === 10 ? 0 : result
+  }
+
+  const d1 = calcDigit(cpf.slice(0, 9), 10)
+  const d2 = calcDigit(cpf.slice(0, 10), 11)
+
+  return cpf.endsWith(`${d1}${d2}`)
+}
+
+const isValidCnpj = (value: string) => {
   const cnpj = value.replace(/\D/g, '')
   if (cnpj.length !== 14) return false
   if (/^(\d)\1+$/.test(cnpj)) return false
@@ -43,6 +74,13 @@ export const isValidCnpj = (value: string) => {
   const d2 = calcDigit(cnpj.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
 
   return cnpj.endsWith(`${d1}${d2}`)
+}
+
+export const isValidCpfOrCnpj = (value: string) => {
+  const onlyDigits = value.replace(/\D/g, '')
+  if (onlyDigits.length === 11) return isValidCpf(value)
+  if (onlyDigits.length === 14) return isValidCnpj(value)
+  return false
 }
 
 export const paginate = <T,>(items: T[], page: number, pageSize: number) => {

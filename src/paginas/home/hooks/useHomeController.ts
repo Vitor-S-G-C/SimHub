@@ -17,8 +17,8 @@ import {
 } from '../types'
 import {
   diasParaVencimento,
-  isValidCnpj,
-  maskCnpj,
+  isValidCpfOrCnpj,
+  maskCpfOrCnpj,
   normalizeSearch,
   paginate,
 } from '../utils'
@@ -83,7 +83,7 @@ export function useHomeController() {
   }
 
   const atualizarClienteForm = (field: keyof ClienteFormState, value: string) => {
-    const nextValue = field === 'cnpj' ? maskCnpj(value) : value
+    const nextValue = field === 'cnpj' ? maskCpfOrCnpj(value) : value
     setClienteForm((estadoAtual) => ({
       ...estadoAtual,
       [field]: nextValue,
@@ -91,7 +91,7 @@ export function useHomeController() {
   }
 
   const atualizarClienteEdicaoForm = (field: keyof ClienteFormState, value: string) => {
-    const nextValue = field === 'cnpj' ? maskCnpj(value) : value
+    const nextValue = field === 'cnpj' ? maskCpfOrCnpj(value) : value
     setClienteEdicaoForm((estadoAtual) => ({
       ...estadoAtual,
       [field]: nextValue,
@@ -102,9 +102,14 @@ export function useHomeController() {
     field: K,
     value: LinhaFormState[K],
   ) => {
+    const nextValue =
+      (field === 'valorMem' || field === 'valorCliente') && typeof value === 'string'
+        ? (value.replace(',', '.') as LinhaFormState[K])
+        : value
+
     setLinhaForm((estadoAtual) => ({
       ...estadoAtual,
-      [field]: value,
+      [field]: nextValue,
     }))
   }
 
@@ -112,9 +117,14 @@ export function useHomeController() {
     field: K,
     value: LinhaFormState[K],
   ) => {
+    const nextValue =
+      (field === 'valorMem' || field === 'valorCliente') && typeof value === 'string'
+        ? (value.replace(',', '.') as LinhaFormState[K])
+        : value
+
     setLinhaEdicaoForm((estadoAtual) => ({
       ...estadoAtual,
-      [field]: value,
+      [field]: nextValue,
     }))
   }
 
@@ -334,12 +344,12 @@ export function useHomeController() {
       !clienteForm.nomeFantasia.trim() ||
       !clienteForm.cnpj.trim()
     ) {
-      setFeedbackPainel('Preencha nome, nome fantasia e CNPJ para salvar o cliente.')
+      setFeedbackPainel('Preencha nome, nome fantasia e CPF ou CNPJ para salvar o cliente.')
       return
     }
 
-    if (!isValidCnpj(clienteForm.cnpj)) {
-      setFeedbackPainel('Informe um CNPJ valido para salvar o cliente.')
+    if (!isValidCpfOrCnpj(clienteForm.cnpj)) {
+      setFeedbackPainel('Informe um CPF ou CNPJ valido para salvar o cliente.')
       return
     }
 
@@ -392,12 +402,14 @@ export function useHomeController() {
       !clienteEdicaoForm.nomeFantasia.trim() ||
       !clienteEdicaoForm.cnpj.trim()
     ) {
-      setFeedbackPainel('Preencha nome, nome fantasia e CNPJ para atualizar o cliente.')
+      setFeedbackPainel(
+        'Preencha nome, nome fantasia e CPF ou CNPJ para atualizar o cliente.',
+      )
       return
     }
 
-    if (!isValidCnpj(clienteEdicaoForm.cnpj)) {
-      setFeedbackPainel('Informe um CNPJ valido para atualizar o cliente.')
+    if (!isValidCpfOrCnpj(clienteEdicaoForm.cnpj)) {
+      setFeedbackPainel('Informe um CPF ou CNPJ valido para atualizar o cliente.')
       return
     }
 
@@ -456,6 +468,16 @@ export function useHomeController() {
       !linhaForm.empresa.trim()
     ) {
       setFeedbackPainel('Preencha todos os campos da linha antes de salvar.')
+      return
+    }
+
+    if (
+      Number.isNaN(valorMem) ||
+      Number.isNaN(valorCliente) ||
+      valorMem < 0 ||
+      valorCliente <= 0
+    ) {
+      setFeedbackPainel('Informe valores numericos validos para a linha.')
       return
     }
 
@@ -546,6 +568,16 @@ export function useHomeController() {
       !linhaEdicaoForm.empresa.trim()
     ) {
       setFeedbackPainel('Preencha todos os campos da linha antes de salvar.')
+      return
+    }
+
+    if (
+      Number.isNaN(valorMem) ||
+      Number.isNaN(valorCliente) ||
+      valorMem < 0 ||
+      valorCliente <= 0
+    ) {
+      setFeedbackPainel('Informe valores numericos validos para a linha.')
       return
     }
 

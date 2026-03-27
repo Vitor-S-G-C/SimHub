@@ -1,21 +1,23 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  isValidCnpj,
-  maskCnpj,
+  isValidCpfOrCnpj,
+  maskCpfOrCnpj,
   normalizeSearch,
   paginate,
   toDateBr,
 } from './utils'
 
 describe('utils', () => {
-  it('mascara CNPJ corretamente', () => {
-    expect(maskCnpj('11222333000181')).toBe('11.222.333/0001-81')
+  it('mascara CPF e CNPJ corretamente', () => {
+    expect(maskCpfOrCnpj('12345678901')).toBe('123.456.789-01')
+    expect(maskCpfOrCnpj('11222333000181')).toBe('11.222.333/0001-81')
   })
 
-  it('valida CNPJ conhecido', () => {
-    expect(isValidCnpj('11.222.333/0001-81')).toBe(true)
-    expect(isValidCnpj('11.222.333/0001-82')).toBe(false)
+  it('valida CPF ou CNPJ conhecido', () => {
+    expect(isValidCpfOrCnpj('529.982.247-25')).toBe(true)
+    expect(isValidCpfOrCnpj('11.222.333/0001-81')).toBe(true)
+    expect(isValidCpfOrCnpj('11.222.333/0001-82')).toBe(false)
   })
 
   it('normaliza busca ignorando acentos e pontuacao', () => {

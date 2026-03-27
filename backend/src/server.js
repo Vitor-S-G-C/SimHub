@@ -61,9 +61,14 @@ app.post('/api/clientes', (req, res) => {
   const nome = String(req.body?.nome || '').trim()
   const nomeFantasia = String(req.body?.nomeFantasia || '').trim()
   const cnpj = String(req.body?.cnpj || '').trim()
+  const documentoDigits = cnpj.replace(/\D/g, '')
 
   if (!nome || !nomeFantasia || !cnpj) {
-    return sendValidationError(res, 'Preencha nome, nome fantasia e CNPJ.')
+    return sendValidationError(res, 'Preencha nome, nome fantasia e CPF ou CNPJ.')
+  }
+
+  if (![11, 14].includes(documentoDigits.length)) {
+    return sendValidationError(res, 'Informe um CPF ou CNPJ valido.')
   }
 
   try {
@@ -75,7 +80,7 @@ app.post('/api/clientes', (req, res) => {
     return res.status(201).json(mapCliente(row))
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
-      return sendValidationError(res, 'CNPJ ja cadastrado.')
+      return sendValidationError(res, 'CPF/CNPJ ja cadastrado.')
     }
     return res.status(500).json({ message: 'Erro ao criar cliente.' })
   }
@@ -86,9 +91,18 @@ app.put('/api/clientes/:id', (req, res) => {
   const nome = String(req.body?.nome || '').trim()
   const nomeFantasia = String(req.body?.nomeFantasia || '').trim()
   const cnpj = String(req.body?.cnpj || '').trim()
+  const documentoDigits = cnpj.replace(/\D/g, '')
 
-  if (!id || !nome || !nomeFantasia || !cnpj) {
-    return sendValidationError(res, 'Dados invalidos para atualizar cliente.')
+  if (!id) {
+    return sendValidationError(res, 'ID invalido para atualizar cliente.')
+  }
+
+  if (!nome || !nomeFantasia || !cnpj) {
+    return sendValidationError(res, 'Preencha nome, nome fantasia e CPF ou CNPJ para atualizar.')
+  }
+
+  if (![11, 14].includes(documentoDigits.length)) {
+    return sendValidationError(res, 'Informe um CPF ou CNPJ valido para atualizar.')
   }
 
   try {
@@ -114,7 +128,7 @@ app.put('/api/clientes/:id', (req, res) => {
     return res.json(mapCliente(row))
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
-      return sendValidationError(res, 'CNPJ ja cadastrado em outro cliente.')
+      return sendValidationError(res, 'CPF/CNPJ ja cadastrado em outro cliente.')
     }
     return res.status(500).json({ message: 'Erro ao atualizar cliente.' })
   }
@@ -246,8 +260,11 @@ app.put('/api/linhas/:id', (req, res) => {
   const empresa = String(req.body?.empresa || '').trim()
   const ativa = req.body?.ativa ? 1 : 0
 
+  if (!id) {
+    return sendValidationError(res, 'ID invalido para atualizar linha.')
+  }
+
   if (
-    !id ||
     !numero ||
     Number.isNaN(valorMem) ||
     Number.isNaN(valorCliente) ||
@@ -258,7 +275,11 @@ app.put('/api/linhas/:id', (req, res) => {
     !contaLinha ||
     !empresa
   ) {
-    return sendValidationError(res, 'Dados invalidos para atualizar linha.')
+    return sendValidationError(res, 'Preencha todos os campos obrigatorios para atualizar a linha.')
+  }
+
+  if (valorMem < 0 || valorCliente <= 0) {
+    return sendValidationError(res, 'Informe valores validos para MEM e valor cliente.')
   }
 
   if (valorCliente < valorMem) {

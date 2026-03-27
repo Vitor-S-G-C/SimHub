@@ -118,7 +118,7 @@ export function InfoClienteTab({
             <strong>{clienteSelecionado.nomeFantasia}</strong>
           </div>
           <div className="soft-card">
-            <span>CNPJ</span>
+            <span>CPF/CNPJ</span>
             <strong>{clienteSelecionado.cnpj}</strong>
           </div>
           <div className="soft-card">
@@ -192,7 +192,7 @@ export function InfoClienteTab({
               />
               <input
                 type="text"
-                placeholder="CNPJ"
+                placeholder="CPF ou CNPJ"
                 value={clienteEdicaoForm.cnpj}
                 onChange={(event) => onClienteEdicaoFormChange('cnpj', event.target.value)}
               />
