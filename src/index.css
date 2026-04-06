@@ -1,30 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg-base: #f6f1e9;
-  --bg-panel: rgba(255, 251, 245, 0.82);
-  --bg-panel-strong: rgba(254, 248, 238, 0.94);
-  --border: rgba(102, 85, 64, 0.28);
-  --text: #5a4b3e;
-  --text-strong: #2a1e16;
-  --text-muted: #7a6654;
-  --accent: #c74a31;
-  --accent-soft: rgba(199, 74, 49, 0.16);
-  --accent-alt: #0f6b5c;
-  --input-bg: rgba(255, 255, 255, 0.88);
-  --input-border: rgba(146, 121, 98, 0.44);
-  --shadow: 0 24px 60px rgba(73, 47, 24, 0.15);
+  --bg-base: #1a0505;
+  --bg-panel: rgba(40, 10, 10, 0.82);
+  --bg-panel-strong: rgba(50, 12, 12, 0.94);
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #e8d0d0;
+  --text-strong: #fff;
+  --text-muted: #b89a9a;
+  --accent: #ff6b6b;
+  --accent-soft: rgba(255, 107, 107, 0.18);
+  --accent-alt: #ff4444;
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.18);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
   --sans: 'Space Grotesk', 'Segoe UI', sans-serif;
   --heading: 'Fraunces', Georgia, serif;
 
   font: 18px/1.5 var(--sans);
   letter-spacing: 0.01em;
   color: var(--text);
-  background:
-    radial-gradient(circle at 8% 4%, rgba(255, 180, 107, 0.38), transparent 26%),
-    radial-gradient(circle at 92% 10%, rgba(33, 164, 140, 0.22), transparent 24%),
-    radial-gradient(circle at 88% 86%, rgba(199, 74, 49, 0.18), transparent 34%),
-    linear-gradient(170deg, #fff8ee 0%, #f6f1e9 48%, #eee3d4 100%);
+  background: #1a0505;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -38,7 +34,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: transparent;
+  background: #1a0505;
 }
 
 h1,
@@ -77,7 +73,7 @@ p {
   height: 280px;
   right: -60px;
   top: 18%;
-  background: radial-gradient(circle, rgba(15, 107, 92, 0.24), rgba(15, 107, 92, 0));
+  background: radial-gradient(circle, rgba(255, 50, 50, 0.12), transparent);
   animation: driftY 14s ease-in-out infinite;
 }
 
@@ -86,7 +82,7 @@ p {
   height: 340px;
   left: -90px;
   bottom: 8%;
-  background: radial-gradient(circle, rgba(199, 74, 49, 0.24), rgba(199, 74, 49, 0));
+  background: radial-gradient(circle, rgba(255, 50, 50, 0.08), transparent);
   animation: driftY 11s ease-in-out infinite reverse;
 }
 

@@ -1,12 +1,15 @@
+import { Home, LogOut, User } from 'lucide-react'
 import { ClientesTab } from './components/ClientesTab'
 import { ContasTab } from './components/ContasTab'
+import { DashboardTab } from './components/DashboardTab'
 import { InfoClienteTab } from './components/InfoClienteTab'
 import { InfoLinhaTab } from './components/InfoLinhaTab'
 import { LinhasTab } from './components/LinhasTab'
 import { Pagination } from './components/Pagination'
+import { PerfilTab } from './components/PerfilTab'
 import { TabNav } from './components/TabNav'
 import { useHomeController } from './hooks/useHomeController'
-import { toCurrency, toDateBr } from './utils'
+import { toDateBr } from './utils'
 
 function Homepage() {
   const {
@@ -75,82 +78,50 @@ function Homepage() {
     confirmarExclusao,
   } = useHomeController()
 
-  const contasAReceber = contas.filter((conta) => conta.status === 'aberto')
-  const contasRecebidas = contas.filter((conta) => conta.status === 'consolidado')
-  const valorAReceber = contasAReceber.reduce((sum, conta) => sum + conta.valor, 0)
-  const valorRecebido = contasRecebidas.reduce((sum, conta) => sum + conta.valor, 0)
-  const totalContas = contas.length
-
   return (
     <main className="helix-shell">
-      <header className="helix-topbar">
-        <div>
-          <span className="login-badge">HELIX SaaS</span>
-          <h2>Gestao de linhas e cobranca</h2>
-          <p>Painel aberto sem login.</p>
+      <aside className="helix-sidebar">
+        <div className="sidebar-top">
+          <button className="sidebar-logo" onClick={() => setAbaAtiva('dashboard')} title="Voltar ao Dashboard">
+            <Home size={28} />
+          </button>
+          <TabNav abaAtiva={abaAtiva} onChange={setAbaAtiva} />
         </div>
-        <div className="topbar-actions">
-          <div className="welcome-copy">
-            <strong>Bem vindo Ednei</strong>
-            <small>Velho da lancha</small>
-          </div>
-          <button className="ghost-button" onClick={() => window.location.reload()}>
-            Sair
+        <div className="sidebar-bottom">
+          <button className="sidebar-sair" onClick={() => window.location.reload()} title="Sair">
+            <LogOut size={20} />
           </button>
         </div>
-      </header>
+      </aside>
 
-      <section className="stats-grid">
-        <article className="stat-card">
-          <span>Contas a receber</span>
-          <strong>{contasAReceber.length}</strong>
-          <small>{toCurrency(valorAReceber)}</small>
-        </article>
-        <article className="stat-card">
-          <span>Contas recebidas</span>
-          <strong>{contasRecebidas.length}</strong>
-          <small>{toCurrency(valorRecebido)}</small>
-        </article>
-        <article className="stat-card">
-          <span>Total</span>
-          <strong>{totalContas}</strong>
-          <small>{toCurrency(contas.reduce((sum, conta) => sum + conta.valor, 0))}</small>
-        </article>
-      </section>
-
-      {notificacoesVisiveis.length > 0 ? (
-        <section className="notification-strip" role="status">
-          {notificacoesVisiveis.slice(0, 3).map((conta) => {
-            const cliente = clientes.find((item) => item.id === conta.clienteId)
-            const linha = linhas.find((item) => item.id === conta.linhaId)
-
-            return (
-              <div key={conta.id} className="notification-item">
-                <p>
-                  Vencimento proximo: {cliente?.nomeFantasia} / {linha?.numero} ({' '}
-                  {toDateBr(conta.dataVencimento)}).
-                </p>
-                <button
-                  type="button"
-                  className="notification-close"
-                  aria-label="Fechar notificacao"
-                  onClick={() => fecharNotificacao(conta.id)}
-                >
-                  x
-                </button>
-              </div>
-            )
-          })}
-        </section>
-      ) : null}
-
-      <section className="helix-layout">
-        <aside className="helix-sidebar">
-          <TabNav abaAtiva={abaAtiva} onChange={setAbaAtiva} />
-        </aside>
+      <div className="helix-main">
+        <header className="helix-topbar">
+          <button className="topbar-user" onClick={() => setAbaAtiva('perfil')} title="Ver perfil">
+            <div className="topbar-user-icon">
+              <User size={20} />
+            </div>
+            <div className="topbar-user-info">
+              <strong>Ednei</strong>
+              <small>Administrador</small>
+            </div>
+          </button>
+        </header>
 
         <section className="panel-area">
           {carregandoDados ? <p className="login-feedback">Carregando dados...</p> : null}
+
+          {abaAtiva === 'dashboard' ? (
+            <DashboardTab
+              contas={contas}
+              clientes={clientes}
+              totalClientes={clientes.length}
+              totalLinhas={linhas.length}
+            />
+          ) : null}
+
+          {abaAtiva === 'perfil' ? (
+            <PerfilTab nome="Ednei" cargo="Administrador" />
+          ) : null}
 
           {abaAtiva === 'clientes' ? (
             <>
@@ -267,7 +238,7 @@ function Homepage() {
             </>
           ) : null}
         </section>
-      </section>
+      </div>
 
       {toasts.length > 0 ? (
         <section className="toast-stack" aria-live="polite">

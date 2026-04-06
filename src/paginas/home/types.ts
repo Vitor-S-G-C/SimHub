@@ -1,4 +1,4 @@
-export type Aba = 'clientes' | 'linhas' | 'infoCliente' | 'infoLinha' | 'contas'
+export type Aba = 'dashboard' | 'clientes' | 'linhas' | 'infoCliente' | 'infoLinha' | 'contas' | 'perfil'
 
 export type Cliente = {
   id: number
