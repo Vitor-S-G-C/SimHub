@@ -9,7 +9,6 @@ import { Pagination } from './components/Pagination'
 import { PerfilTab } from './components/PerfilTab'
 import { TabNav } from './components/TabNav'
 import { useHomeController } from './hooks/useHomeController'
-import { toDateBr } from './utils'
 
 function Homepage() {
   const {
@@ -41,7 +40,6 @@ function Homepage() {
     setToasts,
     confirmDelete,
     setConfirmDelete,
-    notificacoesVisiveis,
     clientesPaginados,
     linhasPaginadas,
     linhasInfoClientePaginadas,
@@ -60,7 +58,6 @@ function Homepage() {
     atualizarClienteEdicaoForm,
     atualizarLinhaForm,
     atualizarLinhaEdicaoForm,
-    fecharNotificacao,
     salvarCliente,
     editarCliente,
     cancelarEdicaoCliente,
