@@ -1,110 +1,63 @@
-import Database from 'better-sqlite3'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import pg from 'pg'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const dataDir = path.join(__dirname, '..', 'data')
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:senha@localhost:5432/simhub',
+})
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true })
-}
-
-const databasePath = path.join(dataDir, 'simhub.db')
-const db = new Database(databasePath)
-db.pragma('foreign_keys = ON')
-
-const initDatabase = () => {
-  db.exec(`
+const initDatabase = async () => {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS clientes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nome TEXT NOT NULL,
-      nome_fantasia TEXT NOT NULL,
-      cnpj TEXT NOT NULL UNIQUE,
-      atualizado_em TEXT,
-      atualizado_por TEXT,
-      criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS linhas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      numero TEXT NOT NULL UNIQUE,
-      valor_mem REAL NOT NULL,
-      valor_cliente REAL NOT NULL,
-      usuario TEXT NOT NULL,
-      fidelidade TEXT NOT NULL,
-      cliente_id INTEGER NOT NULL,
-      data_pagamento TEXT NOT NULL,
-      conta_linha TEXT NOT NULL,
-      empresa TEXT NOT NULL,
-      ativa INTEGER NOT NULL DEFAULT 1,
-      atualizado_em TEXT,
-      atualizado_por TEXT,
-      criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
-    );
-
-    CREATE TABLE IF NOT EXISTS contas_receber (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      linha_id INTEGER,
-      cliente_id INTEGER NOT NULL,
-      valor REAL NOT NULL,
-      data_vencimento TEXT NOT NULL,
-      status TEXT NOT NULL CHECK (status IN ('aberto', 'consolidado')) DEFAULT 'aberto',
-      criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (linha_id) REFERENCES linhas(id) ON DELETE CASCADE,
-      FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
-    );
+      id              SERIAL PRIMARY KEY,
+      nome            VARCHAR(200)    NOT NULL,
+      nome_fantasia   VARCHAR(200)    NOT NULL,
+      cnpj            VARCHAR(18)     NOT NULL UNIQUE,
+      atualizado_em   TIMESTAMPTZ     NULL,
+      atualizado_por  VARCHAR(100)    NULL,
+      criado_em       TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+    )
   `)
 
-  const linhaIdInfo = db
-    .prepare("PRAGMA table_info(contas_receber)")
-    .all()
-    .find((column) => column.name === 'linha_id')
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS linhas (
+      id              SERIAL PRIMARY KEY,
+      numero          VARCHAR(50)     NOT NULL UNIQUE,
+      valor_mem       NUMERIC(12,2)   NOT NULL,
+      valor_cliente   NUMERIC(12,2)   NOT NULL,
+      usuario         VARCHAR(100)    NOT NULL,
+      fidelidade      VARCHAR(100)    NOT NULL,
+      cliente_id      INT             NOT NULL REFERENCES clientes(id),
+      data_pagamento  VARCHAR(10)     NOT NULL,
+      conta_linha     VARCHAR(100)    NOT NULL,
+      empresa         VARCHAR(200)    NOT NULL,
+      ativa           BOOLEAN         NOT NULL DEFAULT TRUE,
+      atualizado_em   TIMESTAMPTZ     NULL,
+      atualizado_por  VARCHAR(100)    NULL,
+      criado_em       TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+    )
+  `)
 
-  // Migrate old databases where linha_id was required so manual contas can be created.
-  if (linhaIdInfo?.notnull === 1) {
-    db.exec(`
-      CREATE TABLE contas_receber_novo (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        linha_id INTEGER,
-        cliente_id INTEGER NOT NULL,
-        valor REAL NOT NULL,
-        data_vencimento TEXT NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('aberto', 'consolidado')) DEFAULT 'aberto',
-        criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (linha_id) REFERENCES linhas(id) ON DELETE CASCADE,
-        FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT
-      );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS contas_receber (
+      id              SERIAL PRIMARY KEY,
+      linha_id        INT             NULL REFERENCES linhas(id) ON DELETE CASCADE,
+      cliente_id      INT             NOT NULL REFERENCES clientes(id),
+      valor           NUMERIC(12,2)   NOT NULL,
+      data_vencimento VARCHAR(10)     NOT NULL,
+      status          VARCHAR(12)     NOT NULL DEFAULT 'aberto'
+        CHECK (status IN ('aberto', 'consolidado')),
+      criado_em       TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+    )
+  `)
 
-      INSERT INTO contas_receber_novo (id, linha_id, cliente_id, valor, data_vencimento, status, criado_em)
-      SELECT id, linha_id, cliente_id, valor, data_vencimento, status, criado_em
-      FROM contas_receber;
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS ix_linhas_cliente_id ON linhas(cliente_id);
+    CREATE INDEX IF NOT EXISTS ix_contas_cliente_id ON contas_receber(cliente_id);
+    CREATE INDEX IF NOT EXISTS ix_contas_linha_id ON contas_receber(linha_id);
+    CREATE INDEX IF NOT EXISTS ix_contas_status ON contas_receber(status);
+    CREATE INDEX IF NOT EXISTS ix_contas_vencimento ON contas_receber(data_vencimento);
+  `)
 
-      DROP TABLE contas_receber;
-      ALTER TABLE contas_receber_novo RENAME TO contas_receber;
-    `)
-  }
-
-  const clienteColumns = db.prepare('PRAGMA table_info(clientes)').all()
-  const linhaColumns = db.prepare('PRAGMA table_info(linhas)').all()
-
-  if (!clienteColumns.some((column) => column.name === 'atualizado_em')) {
-    db.exec('ALTER TABLE clientes ADD COLUMN atualizado_em TEXT')
-  }
-
-  if (!clienteColumns.some((column) => column.name === 'atualizado_por')) {
-    db.exec('ALTER TABLE clientes ADD COLUMN atualizado_por TEXT')
-  }
-
-  if (!linhaColumns.some((column) => column.name === 'atualizado_em')) {
-    db.exec('ALTER TABLE linhas ADD COLUMN atualizado_em TEXT')
-  }
-
-  if (!linhaColumns.some((column) => column.name === 'atualizado_por')) {
-    db.exec('ALTER TABLE linhas ADD COLUMN atualizado_por TEXT')
-  }
+  console.log('Banco SimHub (PostgreSQL) inicializado com sucesso.')
 }
 
-export { db, initDatabase, databasePath }
+export { pool, initDatabase }

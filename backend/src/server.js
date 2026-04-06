@@ -1,8 +1,6 @@
 import cors from 'cors'
 import express from 'express'
-import { db, initDatabase, databasePath } from './db.js'
-
-initDatabase()
+import { pool, initDatabase } from './db.js'
 
 const app = express()
 const PORT = Number(process.env.PORT || 8080)
@@ -46,18 +44,24 @@ const mapConta = (row) => ({
 
 const sendValidationError = (res, message) => res.status(400).json({ message })
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', db: databasePath })
+app.get('/api/health', async (_req, res) => {
+  res.json({ status: 'ok', db: 'SimHub (PostgreSQL)' })
 })
 
-app.get('/api/clientes', (_req, res) => {
-  const rows = db
-    .prepare('SELECT id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por FROM clientes ORDER BY id DESC')
-    .all()
-  res.json(rows.map(mapCliente))
+// ────────── CLIENTES ──────────
+
+app.get('/api/clientes', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por FROM clientes ORDER BY id DESC'
+    )
+    res.json(result.rows.map(mapCliente))
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar clientes.' })
+  }
 })
 
-app.post('/api/clientes', (req, res) => {
+app.post('/api/clientes', async (req, res) => {
   const nome = String(req.body?.nome || '').trim()
   const nomeFantasia = String(req.body?.nomeFantasia || '').trim()
   const cnpj = String(req.body?.cnpj || '').trim()
@@ -72,21 +76,23 @@ app.post('/api/clientes', (req, res) => {
   }
 
   try {
-    const info = db
-      .prepare('INSERT INTO clientes (nome, nome_fantasia, cnpj) VALUES (?, ?, ?)')
-      .run(nome, nomeFantasia, cnpj)
+    const result = await pool.query(
+      `INSERT INTO clientes (nome, nome_fantasia, cnpj)
+       VALUES ($1, $2, $3)
+       RETURNING id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por`,
+      [nome, nomeFantasia, cnpj]
+    )
 
-    const row = db.prepare('SELECT id, nome, nome_fantasia, cnpj FROM clientes WHERE id = ?').get(info.lastInsertRowid)
-    return res.status(201).json(mapCliente(row))
+    return res.status(201).json(mapCliente(result.rows[0]))
   } catch (error) {
-    if (String(error.message).includes('UNIQUE')) {
+    if (String(error.message).includes('UNIQUE') || String(error.message).includes('duplicate')) {
       return sendValidationError(res, 'CPF/CNPJ ja cadastrado.')
     }
     return res.status(500).json({ message: 'Erro ao criar cliente.' })
   }
 })
 
-app.put('/api/clientes/:id', (req, res) => {
+app.put('/api/clientes/:id', async (req, res) => {
   const id = Number(req.params.id)
   const nome = String(req.body?.nome || '').trim()
   const nomeFantasia = String(req.body?.nomeFantasia || '').trim()
@@ -109,62 +115,70 @@ app.put('/api/clientes/:id', (req, res) => {
     const updatedBy = String(req.header('x-user') || 'Sistema').trim() || 'Sistema'
     const updatedAt = new Date().toISOString()
 
-    const info = db
-      .prepare(
-        'UPDATE clientes SET nome = ?, nome_fantasia = ?, cnpj = ?, atualizado_em = ?, atualizado_por = ? WHERE id = ?',
-      )
-      .run(nome, nomeFantasia, cnpj, updatedAt, updatedBy, id)
+    const result = await pool.query(
+      `UPDATE clientes
+       SET nome = $1, nome_fantasia = $2, cnpj = $3,
+           atualizado_em = $4, atualizado_por = $5
+       WHERE id = $6
+       RETURNING id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por`,
+      [nome, nomeFantasia, cnpj, updatedAt, updatedBy, id]
+    )
 
-    if (!info.changes) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Cliente nao encontrado.' })
     }
 
-    db.prepare('UPDATE linhas SET cliente_id = ? WHERE cliente_id = ?').run(id, id)
-    db.prepare('UPDATE contas_receber SET cliente_id = ? WHERE cliente_id = ?').run(id, id)
-
-    const row = db
-      .prepare('SELECT id, nome, nome_fantasia, cnpj, atualizado_em, atualizado_por FROM clientes WHERE id = ?')
-      .get(id)
-    return res.json(mapCliente(row))
+    return res.json(mapCliente(result.rows[0]))
   } catch (error) {
-    if (String(error.message).includes('UNIQUE')) {
+    if (String(error.message).includes('UNIQUE') || String(error.message).includes('duplicate')) {
       return sendValidationError(res, 'CPF/CNPJ ja cadastrado em outro cliente.')
     }
     return res.status(500).json({ message: 'Erro ao atualizar cliente.' })
   }
 })
 
-app.delete('/api/clientes/:id', (req, res) => {
+app.delete('/api/clientes/:id', async (req, res) => {
   const id = Number(req.params.id)
   if (!id) return sendValidationError(res, 'ID de cliente invalido.')
 
-  const temLinha = db.prepare('SELECT 1 FROM linhas WHERE cliente_id = ? LIMIT 1').get(id)
-  if (temLinha) {
-    return sendValidationError(res, 'Nao e possivel excluir cliente com linhas vinculadas.')
-  }
+  try {
+    const temLinha = await pool.query(
+      'SELECT 1 AS existe FROM linhas WHERE cliente_id = $1 LIMIT 1',
+      [id]
+    )
 
-  const info = db.prepare('DELETE FROM clientes WHERE id = ?').run(id)
-  if (!info.changes) {
-    return res.status(404).json({ message: 'Cliente nao encontrado.' })
-  }
+    if (temLinha.rows.length > 0) {
+      return sendValidationError(res, 'Nao e possivel excluir cliente com linhas vinculadas.')
+    }
 
-  return res.status(204).send()
+    const result = await pool.query('DELETE FROM clientes WHERE id = $1', [id])
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Cliente nao encontrado.' })
+    }
+
+    return res.status(204).send()
+  } catch {
+    return res.status(500).json({ message: 'Erro ao excluir cliente.' })
+  }
 })
 
-app.get('/api/linhas', (_req, res) => {
-  const rows = db
-    .prepare(`
+// ────────── LINHAS ──────────
+
+app.get('/api/linhas', async (_req, res) => {
+  try {
+    const result = await pool.query(`
       SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
-              data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
-      FROM linhas
-      ORDER BY id DESC
+             data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
+      FROM linhas ORDER BY id DESC
     `)
-    .all()
-
-  res.json(rows.map(mapLinha))
+    res.json(result.rows.map(mapLinha))
+  } catch {
+    res.status(500).json({ message: 'Erro ao buscar linhas.' })
+  }
 })
 
-app.post('/api/linhas', (req, res) => {
+app.post('/api/linhas', async (req, res) => {
   const numero = String(req.body?.numero || '').trim()
   const valorMem = Number(req.body?.valorMem)
   const valorCliente = Number(req.body?.valorCliente)
@@ -174,18 +188,11 @@ app.post('/api/linhas', (req, res) => {
   const dataPagamento = String(req.body?.dataPagamento || '').trim()
   const contaLinha = String(req.body?.contaLinha || '').trim()
   const empresa = String(req.body?.empresa || '').trim()
-  const ativa = req.body?.ativa ? 1 : 0
+  const ativa = Boolean(req.body?.ativa)
 
   if (
-    !numero ||
-    Number.isNaN(valorMem) ||
-    Number.isNaN(valorCliente) ||
-    !usuario ||
-    !fidelidade ||
-    !clienteId ||
-    !dataPagamento ||
-    !contaLinha ||
-    !empresa
+    !numero || Number.isNaN(valorMem) || Number.isNaN(valorCliente) ||
+    !usuario || !fidelidade || !clienteId || !dataPagamento || !contaLinha || !empresa
   ) {
     return sendValidationError(res, 'Preencha todos os campos da linha.')
   }
@@ -194,60 +201,35 @@ app.post('/api/linhas', (req, res) => {
     return sendValidationError(res, 'Valor cliente deve ser maior ou igual ao valor MEM.')
   }
 
-  const clienteExiste = db.prepare('SELECT id FROM clientes WHERE id = ?').get(clienteId)
-  if (!clienteExiste) {
-    return sendValidationError(res, 'Cliente informado nao existe.')
-  }
-
-  const tx = db.transaction(() => {
-    const info = db
-      .prepare(
-        `
-        INSERT INTO linhas (
-          numero, valor_mem, valor_cliente, usuario, fidelidade,
-          cliente_id, data_pagamento, conta_linha, empresa, ativa
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      )
-      .run(
-        numero,
-        valorMem,
-        valorCliente,
-        usuario,
-        fidelidade,
-        clienteId,
-        dataPagamento,
-        contaLinha,
-        empresa,
-        ativa,
-      )
-
-    return info.lastInsertRowid
-  })
-
   try {
-    const newId = tx()
-    const row = db
-      .prepare(
-        `
-        SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
-               data_pagamento, conta_linha, empresa, ativa
-        FROM linhas
-        WHERE id = ?
-      `,
-      )
-      .get(newId)
+    const clienteExiste = await pool.query(
+      'SELECT id FROM clientes WHERE id = $1', [clienteId]
+    )
 
-    return res.status(201).json(mapLinha(row))
+    if (clienteExiste.rows.length === 0) {
+      return sendValidationError(res, 'Cliente informado nao existe.')
+    }
+
+    const result = await pool.query(
+      `INSERT INTO linhas (numero, valor_mem, valor_cliente, usuario, fidelidade,
+        cliente_id, data_pagamento, conta_linha, empresa, ativa)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
+                 data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por`,
+      [numero, valorMem, valorCliente, usuario, fidelidade,
+       clienteId, dataPagamento, contaLinha, empresa, ativa]
+    )
+
+    return res.status(201).json(mapLinha(result.rows[0]))
   } catch (error) {
-    if (String(error.message).includes('UNIQUE')) {
+    if (String(error.message).includes('UNIQUE') || String(error.message).includes('duplicate')) {
       return sendValidationError(res, 'Numero de linha ja cadastrado.')
     }
     return res.status(500).json({ message: 'Erro ao criar linha.' })
   }
 })
 
-app.put('/api/linhas/:id', (req, res) => {
+app.put('/api/linhas/:id', async (req, res) => {
   const id = Number(req.params.id)
   const numero = String(req.body?.numero || '').trim()
   const valorMem = Number(req.body?.valorMem)
@@ -258,22 +240,15 @@ app.put('/api/linhas/:id', (req, res) => {
   const dataPagamento = String(req.body?.dataPagamento || '').trim()
   const contaLinha = String(req.body?.contaLinha || '').trim()
   const empresa = String(req.body?.empresa || '').trim()
-  const ativa = req.body?.ativa ? 1 : 0
+  const ativa = Boolean(req.body?.ativa)
 
   if (!id) {
     return sendValidationError(res, 'ID invalido para atualizar linha.')
   }
 
   if (
-    !numero ||
-    Number.isNaN(valorMem) ||
-    Number.isNaN(valorCliente) ||
-    !usuario ||
-    !fidelidade ||
-    !clienteId ||
-    !dataPagamento ||
-    !contaLinha ||
-    !empresa
+    !numero || Number.isNaN(valorMem) || Number.isNaN(valorCliente) ||
+    !usuario || !fidelidade || !clienteId || !dataPagamento || !contaLinha || !empresa
   ) {
     return sendValidationError(res, 'Preencha todos os campos obrigatorios para atualizar a linha.')
   }
@@ -286,107 +261,100 @@ app.put('/api/linhas/:id', (req, res) => {
     return sendValidationError(res, 'Valor cliente deve ser maior ou igual ao valor MEM.')
   }
 
-  const clienteExiste = db.prepare('SELECT id FROM clientes WHERE id = ?').get(clienteId)
-  if (!clienteExiste) {
-    return sendValidationError(res, 'Cliente informado nao existe.')
-  }
+  try {
+    const clienteExiste = await pool.query(
+      'SELECT id FROM clientes WHERE id = $1', [clienteId]
+    )
 
-  const tx = db.transaction(() => {
+    if (clienteExiste.rows.length === 0) {
+      return sendValidationError(res, 'Cliente informado nao existe.')
+    }
+
     const updatedBy = String(req.header('x-user') || 'Sistema').trim() || 'Sistema'
     const updatedAt = new Date().toISOString()
 
-    const info = db
-      .prepare(
-        `
-        UPDATE linhas
-        SET numero = ?, valor_mem = ?, valor_cliente = ?, usuario = ?, fidelidade = ?,
-            cliente_id = ?, data_pagamento = ?, conta_linha = ?, empresa = ?, ativa = ?,
-            atualizado_em = ?, atualizado_por = ?
-        WHERE id = ?
-      `,
-      )
-      .run(
-        numero,
-        valorMem,
-        valorCliente,
-        usuario,
-        fidelidade,
-        clienteId,
-        dataPagamento,
-        contaLinha,
-        empresa,
-        ativa,
-        updatedAt,
-        updatedBy,
-        id,
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      const updateResult = await client.query(
+        `UPDATE linhas
+         SET numero = $1, valor_mem = $2, valor_cliente = $3,
+             usuario = $4, fidelidade = $5, cliente_id = $6,
+             data_pagamento = $7, conta_linha = $8, empresa = $9,
+             ativa = $10, atualizado_em = $11, atualizado_por = $12
+         WHERE id = $13`,
+        [numero, valorMem, valorCliente, usuario, fidelidade, clienteId,
+         dataPagamento, contaLinha, empresa, ativa, updatedAt, updatedBy, id]
       )
 
-    if (!info.changes) {
-      return 0
+      if (updateResult.rowCount === 0) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Linha nao encontrada.' })
+      }
+
+      await client.query(
+        `UPDATE contas_receber
+         SET cliente_id = $1, valor = $2, data_vencimento = $3
+         WHERE linha_id = $4 AND status = 'aberto'`,
+        [clienteId, valorCliente, dataPagamento, id]
+      )
+
+      await client.query('COMMIT')
+
+      const row = await pool.query(
+        `SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
+                data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
+         FROM linhas WHERE id = $1`,
+        [id]
+      )
+
+      return res.json(mapLinha(row.rows[0]))
+    } catch (txError) {
+      await client.query('ROLLBACK')
+      throw txError
+    } finally {
+      client.release()
     }
-
-    db
-      .prepare(
-        `
-        UPDATE contas_receber
-        SET cliente_id = ?, valor = ?, data_vencimento = ?
-        WHERE linha_id = ? AND status = 'aberto'
-      `,
-      )
-      .run(clienteId, valorCliente, dataPagamento, id)
-
-    return info.changes
-  })
-
-  try {
-    const changed = tx()
-    if (!changed) {
-      return res.status(404).json({ message: 'Linha nao encontrada.' })
-    }
-
-    const row = db
-      .prepare(
-        `
-        SELECT id, numero, valor_mem, valor_cliente, usuario, fidelidade, cliente_id,
-           data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por
-        FROM linhas
-        WHERE id = ?
-      `,
-      )
-      .get(id)
-
-    return res.json(mapLinha(row))
   } catch (error) {
-    if (String(error.message).includes('UNIQUE')) {
+    if (String(error.message).includes('UNIQUE') || String(error.message).includes('duplicate')) {
       return sendValidationError(res, 'Numero de linha ja existe em outro cadastro.')
     }
     return res.status(500).json({ message: 'Erro ao atualizar linha.' })
   }
 })
 
-app.delete('/api/linhas/:id', (req, res) => {
+app.delete('/api/linhas/:id', async (req, res) => {
   const id = Number(req.params.id)
   if (!id) return sendValidationError(res, 'ID de linha invalido.')
 
-  const info = db.prepare('DELETE FROM linhas WHERE id = ?').run(id)
-  if (!info.changes) {
-    return res.status(404).json({ message: 'Linha nao encontrada.' })
+  try {
+    const result = await pool.query('DELETE FROM linhas WHERE id = $1', [id])
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Linha nao encontrada.' })
+    }
+
+    return res.status(204).send()
+  } catch {
+    return res.status(500).json({ message: 'Erro ao excluir linha.' })
   }
-
-  return res.status(204).send()
 })
 
-app.get('/api/contas', (_req, res) => {
-  const rows = db
-    .prepare(
-      'SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber ORDER BY id DESC',
+// ────────── CONTAS ──────────
+
+app.get('/api/contas', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber ORDER BY id DESC'
     )
-    .all()
-
-  res.json(rows.map(mapConta))
+    res.json(result.rows.map(mapConta))
+  } catch {
+    res.status(500).json({ message: 'Erro ao buscar contas.' })
+  }
 })
 
-app.post('/api/contas', (req, res) => {
+app.post('/api/contas', async (req, res) => {
   const clienteId = Number(req.body?.clienteId)
   const valor = Number(req.body?.valor)
   const dataVencimento = String(req.body?.dataVencimento || '').trim()
@@ -403,60 +371,67 @@ app.post('/api/contas', (req, res) => {
     return sendValidationError(res, 'Data de vencimento invalida.')
   }
 
-  const clienteExiste = db.prepare('SELECT id FROM clientes WHERE id = ?').get(clienteId)
-  if (!clienteExiste) {
-    return sendValidationError(res, 'Cliente informado nao existe.')
-  }
-
   try {
-    const info = db
-      .prepare(
-        'INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(null, clienteId, valor, dataVencimento, 'aberto')
+    const clienteExiste = await pool.query(
+      'SELECT id FROM clientes WHERE id = $1', [clienteId]
+    )
 
-    const row = db
-      .prepare('SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber WHERE id = ?')
-      .get(info.lastInsertRowid)
+    if (clienteExiste.rows.length === 0) {
+      return sendValidationError(res, 'Cliente informado nao existe.')
+    }
 
-    return res.status(201).json(mapConta(row))
+    const result = await pool.query(
+      `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status)
+       VALUES (NULL, $1, $2, $3, 'aberto')
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+      [clienteId, valor, dataVencimento]
+    )
+
+    return res.status(201).json(mapConta(result.rows[0]))
   } catch {
     return res.status(500).json({ message: 'Erro ao criar conta.' })
   }
 })
 
-app.patch('/api/contas/:id/consolidar', (req, res) => {
+app.patch('/api/contas/:id/consolidar', async (req, res) => {
   const id = Number(req.params.id)
   if (!id) return sendValidationError(res, 'ID de conta invalido.')
 
-  const info = db
-    .prepare("UPDATE contas_receber SET status = 'consolidado' WHERE id = ?")
-    .run(id)
+  try {
+    const result = await pool.query(
+      `UPDATE contas_receber SET status = 'consolidado' WHERE id = $1
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+      [id]
+    )
 
-  if (!info.changes) {
-    return res.status(404).json({ message: 'Conta nao encontrada.' })
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Conta nao encontrada.' })
+    }
+
+    return res.json(mapConta(result.rows[0]))
+  } catch {
+    return res.status(500).json({ message: 'Erro ao consolidar conta.' })
   }
-
-  const row = db
-    .prepare('SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber WHERE id = ?')
-    .get(id)
-
-  return res.json(mapConta(row))
 })
 
-app.delete('/api/contas/:id', (req, res) => {
+app.delete('/api/contas/:id', async (req, res) => {
   const id = Number(req.params.id)
   if (!id) return sendValidationError(res, 'ID de conta invalido.')
 
-  const info = db.prepare('DELETE FROM contas_receber WHERE id = ?').run(id)
-  if (!info.changes) {
-    return res.status(404).json({ message: 'Conta nao encontrada.' })
-  }
+  try {
+    const result = await pool.query('DELETE FROM contas_receber WHERE id = $1', [id])
 
-  return res.status(204).send()
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Conta nao encontrada.' })
+    }
+
+    return res.status(204).send()
+  } catch {
+    return res.status(500).json({ message: 'Erro ao excluir conta.' })
+  }
 })
 
-app.patch('/api/contas/:id', (req, res) => {
+app.patch('/api/contas/:id', async (req, res) => {
   const id = Number(req.params.id)
   const dataVencimento = String(req.body?.dataVencimento || '').trim()
   const valor = Number(req.body?.valor)
@@ -465,25 +440,38 @@ app.patch('/api/contas/:id', (req, res) => {
   if (!dataVencimento) return sendValidationError(res, 'Data de vencimento invalida.')
   if (Number.isNaN(valor) || valor <= 0) return sendValidationError(res, 'Valor invalido.')
 
-  const info = db
-    .prepare('UPDATE contas_receber SET data_vencimento = ?, valor = ? WHERE id = ?')
-    .run(dataVencimento, valor, id)
+  try {
+    const result = await pool.query(
+      `UPDATE contas_receber SET data_vencimento = $1, valor = $2 WHERE id = $3
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+      [dataVencimento, valor, id]
+    )
 
-  if (!info.changes) {
-    return res.status(404).json({ message: 'Conta nao encontrada.' })
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Conta nao encontrada.' })
+    }
+
+    return res.json(mapConta(result.rows[0]))
+  } catch {
+    return res.status(500).json({ message: 'Erro ao atualizar conta.' })
   }
-
-  const row = db
-    .prepare('SELECT id, linha_id, cliente_id, valor, data_vencimento, status FROM contas_receber WHERE id = ?')
-    .get(id)
-
-  return res.json(mapConta(row))
 })
 
 app.use((_req, res) => {
   res.status(404).json({ message: 'Rota nao encontrada.' })
 })
 
-app.listen(PORT, () => {
-  console.log(`API SimHub rodando em http://localhost:${PORT}/api`)
-})
+// Inicializa banco e sobe o servidor
+const start = async () => {
+  try {
+    await initDatabase()
+    app.listen(PORT, () => {
+      console.log(`API SimHub rodando em http://localhost:${PORT}/api`)
+    })
+  } catch (error) {
+    console.error('Falha ao iniciar servidor:', error.message)
+    process.exit(1)
+  }
+}
+
+start()

@@ -12,6 +12,8 @@ backend/node_modules
 dist
 dist-ssr
 *.local
+.env
+backend/.env
 backend/data/*.db
 backend/data/*.db-*
 
