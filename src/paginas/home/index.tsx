@@ -72,9 +72,9 @@ function Homepage() {
     consolidarConta,
     criarConta,
     salvarConta,
-    deletarConta,
     solicitarExclusaoCliente,
     solicitarExclusaoLinha,
+    solicitarExclusaoConta,
     confirmarExclusao,
   } = useHomeController()
 
@@ -227,7 +227,7 @@ function Homepage() {
                 onCriarConta={criarConta}
                 onConsolidarConta={consolidarConta}
                 onSalvarConta={salvarConta}
-                onDeletarConta={deletarConta}
+                onDeletarConta={solicitarExclusaoConta}
               />
               <Pagination
                 page={contasPaginadas.page}

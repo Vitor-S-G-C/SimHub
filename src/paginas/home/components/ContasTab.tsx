@@ -178,7 +178,7 @@ export function ContasTab({
 
               return (
                 <Fragment key={conta.id}>
-                  <tr>
+                  <tr className={editando ? 'conta-editando' : ''}>
                     <td>{cliente?.nomeFantasia ?? '-'}</td>
                     <td>{linha?.numero ?? '-'}</td>
                     <td>{toCurrency(conta.valor)}</td>
@@ -200,7 +200,7 @@ export function ContasTab({
                     </td>
                   </tr>
                   {editando ? (
-                    <tr>
+                    <tr className="conta-edit-row">
                       <td colSpan={6}>
                         <div className="inline-filters">
                           <label>

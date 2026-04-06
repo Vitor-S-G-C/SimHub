@@ -25,7 +25,7 @@ import {
 
 export type ConfirmDeleteState =
   | {
-      type: 'cliente' | 'linha'
+      type: 'cliente' | 'linha' | 'conta'
       id: number
       title: string
       description: string
@@ -40,7 +40,7 @@ export type Toast = {
 }
 
 export function useHomeController() {
-  const [abaAtiva, setAbaAtiva] = useState<Aba>('clientes')
+  const [abaAtiva, setAbaAtiva] = useState<Aba>('dashboard')
 
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [linhas, setLinhas] = useState<Linha[]>([])
@@ -724,6 +724,16 @@ export function useHomeController() {
     })
   }
 
+  const solicitarExclusaoConta = (id: number) => {
+    setConfirmDelete({
+      type: 'conta',
+      id,
+      blocked: false,
+      title: 'Confirmar exclusao de conta',
+      description: 'Tem certeza que deseja apagar esta conta? Esta acao nao pode ser desfeita.',
+    })
+  }
+
   const confirmarExclusao = async () => {
     if (!confirmDelete || confirmDelete.blocked) return
 
@@ -733,6 +743,10 @@ export function useHomeController() {
 
     if (confirmDelete.type === 'linha') {
       await excluirLinha(confirmDelete.id)
+    }
+
+    if (confirmDelete.type === 'conta') {
+      await deletarConta(confirmDelete.id)
     }
 
     setConfirmDelete(null)
@@ -801,6 +815,7 @@ export function useHomeController() {
     deletarConta,
     solicitarExclusaoCliente,
     solicitarExclusaoLinha,
+    solicitarExclusaoConta,
     confirmarExclusao,
   }
 }

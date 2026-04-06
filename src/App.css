@@ -627,6 +627,7 @@ tbody tr:hover {
   justify-content: center;
   align-items: center;
   gap: 10px;
+  padding: 12px 0;
 }
 
 .pagination-bar span {
@@ -639,6 +640,19 @@ tbody tr:hover {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   padding: 7px 12px;
+  color: var(--text-strong);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.pagination-bar button:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+
+.pagination-bar button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .toast-stack {
@@ -923,6 +937,28 @@ tbody tr:hover {
   color: var(--text-muted);
   min-width: 90px;
   text-align: right;
+}
+
+/* Conta em edição */
+tr.conta-editando {
+  background: rgba(255, 107, 107, 0.12);
+  border-left: 3px solid #ff6b6b;
+}
+
+tr.conta-editando td {
+  color: #ff9a9a;
+}
+
+tr.conta-edit-row td {
+  background: rgba(255, 107, 107, 0.08);
+  border-top: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+tr.conta-edit-row .inline-filters {
+  background: rgba(255, 107, 107, 0.06);
+  border: 1px solid rgba(255, 107, 107, 0.25);
+  border-radius: 14px;
+  padding: 14px 18px;
 }
 
 /* Perfil Styles */
