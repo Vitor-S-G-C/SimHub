@@ -16,7 +16,6 @@ import {
   emptyLinhaForm,
 } from '../types'
 import {
-  diasParaVencimento,
   isValidCpfOrCnpj,
   maskCpfOrCnpj,
   normalizeSearch,
@@ -66,7 +65,6 @@ export function useHomeController() {
   const [feedbackPainel, setFeedbackPainel] = useState('')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState>(null)
-  const [notificacoesFechadas, setNotificacoesFechadas] = useState<number[]>([])
 
   const [paginaClientes, setPaginaClientes] = useState(1)
   const [paginaLinhas, setPaginaLinhas] = useState(1)
@@ -313,28 +311,6 @@ export function useHomeController() {
     [contasFiltradas, paginaContas],
   )
 
-  const notificacoes = useMemo(() => {
-    return contas
-      .filter((conta) => conta.status === 'aberto')
-      .filter((conta) => diasParaVencimento(conta.dataVencimento) <= 5)
-  }, [contas])
-
-  const notificacoesVisiveis = useMemo(() => {
-    return notificacoes.filter((conta) => !notificacoesFechadas.includes(conta.id))
-  }, [notificacoes, notificacoesFechadas])
-
-  useEffect(() => {
-    const idsAtivos = new Set(notificacoes.map((conta) => conta.id))
-    setNotificacoesFechadas((estadoAtual) =>
-      estadoAtual.filter((id) => idsAtivos.has(id)),
-    )
-  }, [notificacoes])
-
-  const fecharNotificacao = (contaId: number) => {
-    setNotificacoesFechadas((estadoAtual) =>
-      estadoAtual.includes(contaId) ? estadoAtual : [...estadoAtual, contaId],
-    )
-  }
 
   const salvarCliente = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -781,7 +757,6 @@ export function useHomeController() {
     setToasts,
     confirmDelete,
     setConfirmDelete,
-    notificacoesVisiveis,
     clientesPaginados,
     linhasPaginadas,
     linhasInfoClientePaginadas,
@@ -800,7 +775,6 @@ export function useHomeController() {
     atualizarClienteEdicaoForm,
     atualizarLinhaForm,
     atualizarLinhaEdicaoForm,
-    fecharNotificacao,
     salvarCliente,
     editarCliente,
     cancelarEdicaoCliente,
