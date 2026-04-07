@@ -747,6 +747,17 @@ tbody tr:hover {
   color: #50c896;
 }
 
+.status-taxa {
+  background: rgba(160, 120, 255, 0.2);
+  color: #a078ff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 6px;
+  text-transform: uppercase;
+}
+
 @media (max-width: 860px) {
   .login-shell {
     padding: 20px;

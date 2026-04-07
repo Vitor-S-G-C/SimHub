@@ -187,6 +187,9 @@ export function ContasTab({
                       <span className={conta.status === 'aberto' ? 'status-open' : 'status-done'}>
                         {conta.status}
                       </span>
+                      {conta.tipo === 'taxa' ? (
+                        <span className="status-taxa"> taxa</span>
+                      ) : null}
                     </td>
                     <td className="actions-cell">
                       {conta.status === 'aberto' ? (

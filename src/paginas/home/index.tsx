@@ -118,8 +118,10 @@ function Homepage({ usuario, onLogout }: HomepageProps) {
             <DashboardTab
               contas={contas}
               clientes={clientes}
+              linhas={linhas}
               totalClientes={clientes.length}
               totalLinhas={linhas.length}
+              role={usuario.role}
             />
           ) : null}
 

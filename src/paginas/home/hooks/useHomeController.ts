@@ -613,16 +613,12 @@ export function useHomeController() {
 
   const consolidarConta = async (id: number) => {
     try {
-      const contaAtualizada = await apiRequest<ContaReceber>(
+      await apiRequest<ContaReceber>(
         `/contas/${id}/consolidar`,
         { method: 'PATCH' },
       )
 
-      setContas((estadoAtual) =>
-        estadoAtual.map((conta) =>
-          conta.id === id ? { ...conta, status: contaAtualizada.status } : conta,
-        ),
-      )
+      await carregarDados()
       setFeedbackPainel('Conta consolidada com sucesso.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao consolidar conta.'

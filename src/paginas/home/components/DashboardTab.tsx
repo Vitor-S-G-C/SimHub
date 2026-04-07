@@ -10,26 +10,89 @@ import {
   Bar,
 } from 'recharts'
 import { AlertTriangle } from 'lucide-react'
-import type { ContaReceber, Cliente } from '../types'
+import type { ContaReceber, Cliente, Linha } from '../types'
 import { toCurrency } from '../utils'
 
 type DashboardTabProps = {
   contas: ContaReceber[]
   clientes: Cliente[]
+  linhas: Linha[]
   totalClientes: number
   totalLinhas: number
+  role: 'admin' | 'coordenacao'
 }
 
-function agruparContasPorMes(contas: ContaReceber[]) {
+const nomesMeses = [
+  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+  'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+]
+
+function mesKey(dataVencimento: string) {
+  const date = new Date(dataVencimento)
+  return `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`
+}
+
+function agruparLucrosCoordenador(contas: ContaReceber[], linhasMap: Map<number, Linha>) {
   const meses: Record<string, { recebido: number; aReceber: number }> = {}
-  const nomesMeses = [
-    'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
-  ]
 
   for (const conta of contas) {
-    const date = new Date(conta.dataVencimento)
-    const key = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`
+    if (conta.tipo === 'taxa') continue
+    const key = mesKey(conta.dataVencimento)
+    if (!meses[key]) meses[key] = { recebido: 0, aReceber: 0 }
+
+    const linha = conta.linhaId ? linhasMap.get(conta.linhaId) : null
+    const lucro = linha ? linha.valorCliente - linha.valorMem : conta.valor
+
+    if (conta.status === 'consolidado') {
+      meses[key].recebido += lucro
+    } else {
+      meses[key].aReceber += lucro
+    }
+  }
+
+  return Object.entries(meses)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([key, valores]) => {
+      const [, mes] = key.split('-')
+      return { nome: nomesMeses[Number(mes)], recebido: valores.recebido, aReceber: valores.aReceber }
+    })
+}
+
+function agruparLucrosAdmin(contas: ContaReceber[], linhasMap: Map<number, Linha>) {
+  const meses: Record<string, { recebido: number; aReceber: number }> = {}
+
+  // Lucro do admin = 5% do lucro de cada conta de coordenador
+  for (const conta of contas) {
+    if (conta.tipo === 'taxa') continue
+    const key = mesKey(conta.dataVencimento)
+    if (!meses[key]) meses[key] = { recebido: 0, aReceber: 0 }
+
+    const linha = conta.linhaId ? linhasMap.get(conta.linhaId) : null
+    const lucro = linha ? (linha.valorCliente - linha.valorMem) * 0.05 : 0
+
+    if (conta.status === 'consolidado') {
+      meses[key].recebido += lucro
+    } else {
+      meses[key].aReceber += lucro
+    }
+  }
+
+  return Object.entries(meses)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([key, valores]) => {
+      const [, mes] = key.split('-')
+      return { nome: nomesMeses[Number(mes)], recebido: Math.round(valores.recebido * 100) / 100, aReceber: Math.round(valores.aReceber * 100) / 100 }
+    })
+}
+
+function agruparRecebidoVsAReceber(contas: ContaReceber[]) {
+  const meses: Record<string, { recebido: number; aReceber: number }> = {}
+
+  for (const conta of contas) {
+    if (conta.tipo === 'taxa') continue
+    const key = mesKey(conta.dataVencimento)
     if (!meses[key]) meses[key] = { recebido: 0, aReceber: 0 }
     if (conta.status === 'consolidado') {
       meses[key].recebido += conta.valor
@@ -43,22 +106,48 @@ function agruparContasPorMes(contas: ContaReceber[]) {
     .slice(-12)
     .map(([key, valores]) => {
       const [, mes] = key.split('-')
-      return {
-        nome: nomesMeses[Number(mes)],
-        recebido: valores.recebido,
-        aReceber: valores.aReceber,
-      }
+      return { nome: nomesMeses[Number(mes)], recebido: valores.recebido, aReceber: valores.aReceber }
     })
 }
 
-export function DashboardTab({ contas, clientes, totalClientes, totalLinhas }: DashboardTabProps) {
-  const contasAReceber = contas.filter((c) => c.status === 'aberto')
-  const contasRecebidas = contas.filter((c) => c.status === 'consolidado')
-  const valorAReceber = contasAReceber.reduce((sum, c) => sum + c.valor, 0)
-  const valorRecebido = contasRecebidas.reduce((sum, c) => sum + c.valor, 0)
-  const lucroTotal = valorRecebido
+export function DashboardTab({ contas, clientes, linhas, totalClientes, totalLinhas, role }: DashboardTabProps) {
+  const contasNormais = contas.filter((c) => c.tipo !== 'taxa')
+  const contasAReceber = contasNormais.filter((c) => c.status === 'aberto')
+  const contasRecebidas = contasNormais.filter((c) => c.status === 'consolidado')
 
-  const dadosMensais = agruparContasPorMes(contas)
+  const linhasMap = new Map(linhas.map((l) => [l.id, l]))
+
+  // Calcular lucro baseado no role
+  let lucroTotal: number
+  let valorAReceber: number
+
+  if (role === 'admin') {
+    // Admin: 5% do lucro de cada conta
+    lucroTotal = contasRecebidas.reduce((sum, c) => {
+      const linha = c.linhaId ? linhasMap.get(c.linhaId) : null
+      return sum + (linha ? (linha.valorCliente - linha.valorMem) * 0.05 : 0)
+    }, 0)
+    valorAReceber = contasAReceber.reduce((sum, c) => {
+      const linha = c.linhaId ? linhasMap.get(c.linhaId) : null
+      return sum + (linha ? (linha.valorCliente - linha.valorMem) * 0.05 : 0)
+    }, 0)
+  } else {
+    // Coordenador: lucro real (valorCliente - valorMem)
+    lucroTotal = contasRecebidas.reduce((sum, c) => {
+      const linha = c.linhaId ? linhasMap.get(c.linhaId) : null
+      return sum + (linha ? linha.valorCliente - linha.valorMem : c.valor)
+    }, 0)
+    valorAReceber = contasAReceber.reduce((sum, c) => {
+      const linha = c.linhaId ? linhasMap.get(c.linhaId) : null
+      return sum + (linha ? linha.valorCliente - linha.valorMem : c.valor)
+    }, 0)
+  }
+
+  const dadosLucros = role === 'admin'
+    ? agruparLucrosAdmin(contas, linhasMap)
+    : agruparLucrosCoordenador(contas, linhasMap)
+
+  const dadosRecebidoVsAReceber = agruparRecebidoVsAReceber(contas)
 
   const clientesMap = new Map(clientes.map((c) => [c.id, c.nomeFantasia]))
 
@@ -77,7 +166,7 @@ export function DashboardTab({ contas, clientes, totalClientes, totalLinhas }: D
     <div className="dashboard-container">
       <div className="dashboard-stats">
         <div className="dash-stat-card">
-          <span className="dash-stat-label">Lucro Total</span>
+          <span className="dash-stat-label">{role === 'admin' ? 'Taxa Coordenação (5%)' : 'Lucro Total'}</span>
           <strong className="dash-stat-value accent">{toCurrency(lucroTotal)}</strong>
         </div>
         <div className="dash-stat-card">
@@ -96,10 +185,10 @@ export function DashboardTab({ contas, clientes, totalClientes, totalLinhas }: D
 
       <div className="dashboard-charts">
         <div className="chart-card">
-          <h3>Lucros por Mês</h3>
+          <h3>{role === 'admin' ? 'Taxa Coordenação por Mês' : 'Lucros por Mês'}</h3>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={dadosMensais}>
+              <AreaChart data={dadosLucros}>
                 <defs>
                   <linearGradient id="gradRecebido" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ff6b6b" stopOpacity={0.3} />
@@ -135,7 +224,7 @@ export function DashboardTab({ contas, clientes, totalClientes, totalLinhas }: D
           <h3>Recebido vs A Receber</h3>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dadosMensais}>
+              <BarChart data={dadosRecebidoVsAReceber}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                 <XAxis dataKey="nome" stroke="rgba(255,255,255,0.5)" fontSize={12} />
                 <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />

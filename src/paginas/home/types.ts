@@ -32,6 +32,7 @@ export type ContaReceber = {
   valor: number
   dataVencimento: string
   status: 'aberto' | 'consolidado'
+  tipo: 'normal' | 'taxa'
 }
 
 export type NovaContaPayload = {

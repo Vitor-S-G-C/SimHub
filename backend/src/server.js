@@ -47,6 +47,7 @@ const mapConta = (row) => ({
   valor: Number(row.valor),
   dataVencimento: row.data_vencimento,
   status: row.status,
+  tipo: row.tipo || 'normal',
 })
 
 const sendValidationError = (res, message) => res.status(400).json({ message })
@@ -496,6 +497,8 @@ app.post('/api/linhas', async (req, res) => {
       return sendValidationError(res, 'Cliente informado nao existe.')
     }
 
+    const coordenacaoId = req.usuario?.role === 'admin' ? null : req.usuario?.id
+
     const result = await pool.query(
       `INSERT INTO linhas (numero, valor_mem, valor_cliente, usuario, fidelidade,
         cliente_id, data_pagamento, conta_linha, empresa, ativa, coordenacao_id)
@@ -504,7 +507,15 @@ app.post('/api/linhas', async (req, res) => {
                  data_pagamento, conta_linha, empresa, ativa, atualizado_em, atualizado_por`,
       [numero, valorMem, valorCliente, usuario, fidelidade,
        clienteId, dataPagamento, contaLinha, empresa, ativa,
-       req.usuario?.role === 'admin' ? null : req.usuario?.id]
+       coordenacaoId]
+    )
+
+    // Auto-criar conta a receber vinculada à linha
+    const linhaId = result.rows[0].id
+    await pool.query(
+      `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, coordenacao_id)
+       VALUES ($1, $2, $3, $4, 'aberto', $5)`,
+      [linhaId, clienteId, valorCliente, dataPagamento, coordenacaoId]
     )
 
     return res.status(201).json(mapLinha(result.rows[0]))
@@ -645,7 +656,7 @@ app.get('/api/contas', async (req, res) => {
     const params = coordId ? [coordId] : []
 
     const result = await pool.query(
-      `SELECT id, linha_id, cliente_id, valor, data_vencimento, status
+      `SELECT id, linha_id, cliente_id, valor, data_vencimento, status, tipo
        FROM contas_receber ${where} ORDER BY id DESC`,
       params
     )
@@ -684,7 +695,7 @@ app.post('/api/contas', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, coordenacao_id)
        VALUES (NULL, $1, $2, $3, 'aberto', $4)
-       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo`,
       [clienteId, valor, dataVencimento, req.usuario?.role === 'admin' ? null : req.usuario?.id]
     )
 
@@ -705,7 +716,7 @@ app.patch('/api/contas/:id/consolidar', async (req, res) => {
 
     const result = await pool.query(
       `UPDATE contas_receber SET status = 'consolidado' WHERE id = $1${whereExtra}
-       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo, coordenacao_id`,
       params
     )
 
@@ -713,7 +724,28 @@ app.patch('/api/contas/:id/consolidar', async (req, res) => {
       return res.status(404).json({ message: 'Conta nao encontrada.' })
     }
 
-    return res.json(mapConta(result.rows[0]))
+    const contaConsolidada = result.rows[0]
+
+    // Auto-gerar taxa de coordenação (5% do lucro) se pertence a um coordenador e tem linha
+    if (contaConsolidada.coordenacao_id && contaConsolidada.linha_id) {
+      const linhaResult = await pool.query(
+        'SELECT valor_cliente, valor_mem FROM linhas WHERE id = $1',
+        [contaConsolidada.linha_id]
+      )
+      if (linhaResult.rows.length > 0) {
+        const lucro = Number(linhaResult.rows[0].valor_cliente) - Number(linhaResult.rows[0].valor_mem)
+        if (lucro > 0) {
+          const taxa = Math.round(lucro * 0.05 * 100) / 100
+          await pool.query(
+            `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, tipo, coordenacao_id)
+             VALUES ($1, $2, $3, $4, 'aberto', 'taxa', NULL)`,
+            [contaConsolidada.linha_id, contaConsolidada.cliente_id, taxa, contaConsolidada.data_vencimento]
+          )
+        }
+      }
+    }
+
+    return res.json(mapConta(contaConsolidada))
   } catch {
     return res.status(500).json({ message: 'Erro ao consolidar conta.' })
   }
@@ -756,7 +788,7 @@ app.patch('/api/contas/:id', async (req, res) => {
 
     const result = await pool.query(
       `UPDATE contas_receber SET data_vencimento = $1, valor = $2 WHERE id = $3${whereExtra}
-       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status`,
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo`,
       params
     )
 

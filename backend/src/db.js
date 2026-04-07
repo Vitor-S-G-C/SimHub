@@ -90,6 +90,13 @@ const initDatabase = async () => {
     END $$;
   `)
 
+  // Adicionar coluna tipo em contas_receber (migração)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE contas_receber ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) NOT NULL DEFAULT 'normal';
+    END $$;
+  `)
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS ix_clientes_coordenacao ON clientes(coordenacao_id);
     CREATE INDEX IF NOT EXISTS ix_linhas_coordenacao ON linhas(coordenacao_id);
@@ -102,15 +109,15 @@ const initDatabase = async () => {
     const senhaHash = await bcrypt.hash('admin##26', 10)
     await pool.query(
       `INSERT INTO usuarios (nome, login, senha, role) VALUES ($1, $2, $3, 'admin')`,
-      ['Administrador', 'admin#2026', senhaHash]
+      ['Vitor', 'admin#2026', senhaHash]
     )
     console.log('Usuario admin padrao criado (login: admin#2026)')
   } else {
-    // Atualizar login/senha do admin existente para as credenciais novas
+    // Atualizar login/senha/nome do admin existente
     const senhaHash = await bcrypt.hash('admin##26', 10)
     await pool.query(
-      `UPDATE usuarios SET login = $1, senha = $2 WHERE id = $3`,
-      ['admin#2026', senhaHash, adminExiste.rows[0].id]
+      `UPDATE usuarios SET nome = $1, login = $2, senha = $3 WHERE id = $4`,
+      ['Vitor', 'admin#2026', senhaHash, adminExiste.rows[0].id]
     )
   }
 
