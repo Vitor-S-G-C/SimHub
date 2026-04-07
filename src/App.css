@@ -1048,3 +1048,63 @@ tr.conta-edit-row .inline-filters {
   font-size: 1rem;
   color: var(--text-strong);
 }
+
+/* Coordenadores */
+.role-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.role-admin {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+}
+
+.role-coord {
+  background: rgba(80, 200, 150, 0.15);
+  color: #50c896;
+}
+
+.coord-feedback {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.coord-feedback-success {
+  background: rgba(80, 200, 150, 0.1);
+  border: 1px solid rgba(80, 200, 150, 0.3);
+  color: #50c896;
+}
+
+.coord-feedback-error {
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #ff6b6b;
+}
+
+.verify-modal {
+  width: min(440px, 100%);
+  gap: 16px;
+}
+
+.verify-modal input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  padding: 12px 14px;
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.verify-modal input:focus {
+  outline: none;
+  border-color: rgba(255, 107, 107, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15);
+}

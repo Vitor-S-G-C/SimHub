@@ -1,4 +1,4 @@
-export type Aba = 'dashboard' | 'clientes' | 'linhas' | 'infoCliente' | 'infoLinha' | 'contas' | 'perfil'
+export type Aba = 'dashboard' | 'clientes' | 'linhas' | 'infoCliente' | 'infoLinha' | 'contas' | 'perfil' | 'coordenadores'
 
 export type Cliente = {
   id: number
@@ -85,6 +85,36 @@ export type LinhaFormState = {
 
 export type ApiError = {
   message?: string
+}
+
+export type Usuario = {
+  id: number
+  nome: string
+  login: string
+  role: 'admin' | 'coordenacao'
+}
+
+export type AuthResponse = {
+  token: string
+  usuario: Usuario
+}
+
+export type UsuarioListItem = {
+  id: number
+  nome: string
+  login: string
+  numero: string
+  contato: string
+  role: 'admin' | 'coordenacao'
+  criadoEm: string
+}
+
+export type CoordenadorPayload = {
+  nome: string
+  login: string
+  senha: string
+  numero: string
+  contato: string
 }
 
 export const emptyClienteForm = (): ClienteFormState => ({

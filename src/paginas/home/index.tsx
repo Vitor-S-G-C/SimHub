@@ -7,10 +7,17 @@ import { InfoLinhaTab } from './components/InfoLinhaTab'
 import { LinhasTab } from './components/LinhasTab'
 import { Pagination } from './components/Pagination'
 import { PerfilTab } from './components/PerfilTab'
+import { CoordenadoresTab } from './components/CoordenadoresTab'
 import { TabNav } from './components/TabNav'
 import { useHomeController } from './hooks/useHomeController'
+import type { Usuario } from './types'
 
-function Homepage() {
+type HomepageProps = {
+  usuario: Usuario
+  onLogout: () => void
+}
+
+function Homepage({ usuario, onLogout }: HomepageProps) {
   const {
     abaAtiva,
     setAbaAtiva,
@@ -82,10 +89,10 @@ function Homepage() {
           <button className="sidebar-logo" onClick={() => setAbaAtiva('dashboard')} title="Voltar ao Dashboard">
             <Home size={28} />
           </button>
-          <TabNav abaAtiva={abaAtiva} onChange={setAbaAtiva} />
+          <TabNav abaAtiva={abaAtiva} onChange={setAbaAtiva} role={usuario.role} />
         </div>
         <div className="sidebar-bottom">
-          <button className="sidebar-sair" onClick={() => window.location.reload()} title="Sair">
+          <button className="sidebar-sair" onClick={onLogout} title="Sair">
             <LogOut size={20} />
           </button>
         </div>
@@ -98,8 +105,8 @@ function Homepage() {
               <User size={20} />
             </div>
             <div className="topbar-user-info">
-              <strong>Ednei</strong>
-              <small>Administrador</small>
+              <strong>{usuario.nome}</strong>
+              <small>{usuario.role === 'admin' ? 'Administrador' : 'Coordenacao'}</small>
             </div>
           </button>
         </header>
@@ -117,7 +124,15 @@ function Homepage() {
           ) : null}
 
           {abaAtiva === 'perfil' ? (
-            <PerfilTab nome="Ednei" cargo="Administrador" />
+            <PerfilTab
+              nome={usuario.nome}
+              cargo={usuario.role === 'admin' ? 'Administrador' : 'Coordenacao'}
+              login={usuario.login}
+            />
+          ) : null}
+
+          {abaAtiva === 'coordenadores' && usuario.role === 'admin' ? (
+            <CoordenadoresTab />
           ) : null}
 
           {abaAtiva === 'clientes' ? (

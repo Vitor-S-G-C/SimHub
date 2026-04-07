@@ -1,11 +1,12 @@
-import { User, Mail, Shield, Calendar } from 'lucide-react'
+import { User, Shield, Calendar, KeyRound } from 'lucide-react'
 
 type PerfilTabProps = {
   nome: string
   cargo: string
+  login: string
 }
 
-export function PerfilTab({ nome, cargo }: PerfilTabProps) {
+export function PerfilTab({ nome, cargo, login }: PerfilTabProps) {
   return (
     <div className="perfil-container">
       <div className="perfil-card">
@@ -29,11 +30,11 @@ export function PerfilTab({ nome, cargo }: PerfilTabProps) {
 
         <div className="perfil-info-card">
           <div className="perfil-info-icon">
-            <Mail size={20} />
+            <KeyRound size={20} />
           </div>
           <div>
-            <span className="perfil-info-label">Email</span>
-            <strong className="perfil-info-value">ednei@helixsaas.com</strong>
+            <span className="perfil-info-label">Login</span>
+            <strong className="perfil-info-value">{login}</strong>
           </div>
         </div>
 

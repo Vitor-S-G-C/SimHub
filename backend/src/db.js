@@ -1,4 +1,5 @@
 import pg from 'pg'
+import bcrypt from 'bcryptjs'
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:1251@localhost:5432/simhub',
@@ -57,6 +58,61 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS ix_contas_status ON contas_receber(status);
     CREATE INDEX IF NOT EXISTS ix_contas_vencimento ON contas_receber(data_vencimento);
   `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id       SERIAL PRIMARY KEY,
+      nome     VARCHAR(200) NOT NULL,
+      login    VARCHAR(100) NOT NULL UNIQUE,
+      senha    VARCHAR(200) NOT NULL,
+      numero   VARCHAR(30)  NOT NULL DEFAULT '',
+      contato  VARCHAR(200) NOT NULL DEFAULT '',
+      role     VARCHAR(20)  NOT NULL DEFAULT 'coordenacao'
+        CHECK (role IN ('admin', 'coordenacao')),
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+
+  // Adicionar colunas numero/contato se não existirem (migração)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS numero VARCHAR(30) NOT NULL DEFAULT '';
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contato VARCHAR(200) NOT NULL DEFAULT '';
+    END $$;
+  `)
+
+  // Adicionar coordenacao_id nas tabelas de dados (migração)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE clientes ADD COLUMN IF NOT EXISTS coordenacao_id INT NULL REFERENCES usuarios(id);
+      ALTER TABLE linhas ADD COLUMN IF NOT EXISTS coordenacao_id INT NULL REFERENCES usuarios(id);
+      ALTER TABLE contas_receber ADD COLUMN IF NOT EXISTS coordenacao_id INT NULL REFERENCES usuarios(id);
+    END $$;
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS ix_clientes_coordenacao ON clientes(coordenacao_id);
+    CREATE INDEX IF NOT EXISTS ix_linhas_coordenacao ON linhas(coordenacao_id);
+    CREATE INDEX IF NOT EXISTS ix_contas_coordenacao ON contas_receber(coordenacao_id);
+  `)
+
+  // Seed admin padrão — cria ou atualiza credenciais
+  const adminExiste = await pool.query("SELECT id FROM usuarios WHERE role = 'admin' LIMIT 1")
+  if (adminExiste.rows.length === 0) {
+    const senhaHash = await bcrypt.hash('admin##26', 10)
+    await pool.query(
+      `INSERT INTO usuarios (nome, login, senha, role) VALUES ($1, $2, $3, 'admin')`,
+      ['Administrador', 'admin#2026', senhaHash]
+    )
+    console.log('Usuario admin padrao criado (login: admin#2026)')
+  } else {
+    // Atualizar login/senha do admin existente para as credenciais novas
+    const senhaHash = await bcrypt.hash('admin##26', 10)
+    await pool.query(
+      `UPDATE usuarios SET login = $1, senha = $2 WHERE id = $3`,
+      ['admin#2026', senhaHash, adminExiste.rows[0].id]
+    )
+  }
 
   console.log('Banco SimHub (PostgreSQL) inicializado com sucesso.')
 }

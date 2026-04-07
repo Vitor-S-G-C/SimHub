@@ -398,7 +398,6 @@ export function useHomeController() {
 
       await apiRequest(`/clientes/${clienteEmEdicao}`, {
         method: 'PUT',
-        headers: { 'x-user': 'Ednei' },
         body: JSON.stringify(payload),
       })
 
@@ -586,7 +585,6 @@ export function useHomeController() {
 
       await apiRequest(`/linhas/${linhaEmEdicao}`, {
         method: 'PUT',
-        headers: { 'x-user': 'Ednei' },
         body: JSON.stringify(payload),
       })
 
