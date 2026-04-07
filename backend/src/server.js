@@ -5,7 +5,11 @@ import { pool, initDatabase } from './db.js'
 const app = express()
 const PORT = Number(process.env.PORT || 8080)
 
-app.use(cors({ origin: ['http://localhost:5173'], credentials: false }))
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : ['http://localhost:5173']
+
+app.use(cors({ origin: allowedOrigins, credentials: false }))
 app.use(express.json())
 
 const mapCliente = (row) => ({
