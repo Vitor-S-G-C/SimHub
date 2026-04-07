@@ -1,7 +1,7 @@
 import pg from 'pg'
 
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:senha@localhost:5432/simhub',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:1251@localhost:5432/simhub',
 })
 
 const initDatabase = async () => {
