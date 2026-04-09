@@ -33,12 +33,14 @@ export type ContaReceber = {
   dataVencimento: string
   status: 'aberto' | 'consolidado'
   tipo: 'normal' | 'taxa'
+  descricao: string
 }
 
 export type NovaContaPayload = {
   clienteId: number
   valor: number
   dataVencimento: string
+  descricao?: string
 }
 
 export type ClientePayload = {
@@ -63,6 +65,7 @@ export type LinhaPayload = {
 export type RenovarContaPayload = {
   dataVencimento: string
   valor: number
+  descricao?: string
 }
 
 export type ClienteFormState = {

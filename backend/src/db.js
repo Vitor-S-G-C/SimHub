@@ -97,6 +97,13 @@ const initDatabase = async () => {
     END $$;
   `)
 
+  // Adicionar coluna descricao em contas_receber (migração)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE contas_receber ADD COLUMN IF NOT EXISTS descricao VARCHAR(255) NULL;
+    END $$;
+  `)
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS ix_clientes_coordenacao ON clientes(coordenacao_id);
     CREATE INDEX IF NOT EXISTS ix_linhas_coordenacao ON linhas(coordenacao_id);

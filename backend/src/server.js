@@ -48,6 +48,7 @@ const mapConta = (row) => ({
   dataVencimento: row.data_vencimento,
   status: row.status,
   tipo: row.tipo || 'normal',
+  descricao: row.descricao || '',
 })
 
 const sendValidationError = (res, message) => res.status(400).json({ message })
@@ -510,14 +511,6 @@ app.post('/api/linhas', async (req, res) => {
        coordenacaoId]
     )
 
-    // Auto-criar conta a receber vinculada à linha
-    const linhaId = result.rows[0].id
-    await pool.query(
-      `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, coordenacao_id)
-       VALUES ($1, $2, $3, $4, 'aberto', $5)`,
-      [linhaId, clienteId, valorCliente, dataPagamento, coordenacaoId]
-    )
-
     return res.status(201).json(mapLinha(result.rows[0]))
   } catch (error) {
     if (String(error.message).includes('UNIQUE') || String(error.message).includes('duplicate')) {
@@ -670,6 +663,7 @@ app.post('/api/contas', async (req, res) => {
   const clienteId = Number(req.body?.clienteId)
   const valor = Number(req.body?.valor)
   const dataVencimento = String(req.body?.dataVencimento || '').trim()
+  const descricao = String(req.body?.descricao || '').trim().slice(0, 255)
 
   if (!clienteId) {
     return sendValidationError(res, 'Cliente invalido para a conta.')
@@ -693,10 +687,10 @@ app.post('/api/contas', async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, coordenacao_id)
-       VALUES (NULL, $1, $2, $3, 'aberto', $4)
-       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo`,
-      [clienteId, valor, dataVencimento, req.usuario?.role === 'admin' ? null : req.usuario?.id]
+      `INSERT INTO contas_receber (linha_id, cliente_id, valor, data_vencimento, status, coordenacao_id, descricao)
+       VALUES (NULL, $1, $2, $3, 'aberto', $4, $5)
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo, descricao`,
+      [clienteId, valor, dataVencimento, req.usuario?.role === 'admin' ? null : req.usuario?.id, descricao || null]
     )
 
     return res.status(201).json(mapConta(result.rows[0]))
@@ -776,6 +770,7 @@ app.patch('/api/contas/:id', async (req, res) => {
   const id = Number(req.params.id)
   const dataVencimento = String(req.body?.dataVencimento || '').trim()
   const valor = Number(req.body?.valor)
+  const descricao = String(req.body?.descricao ?? '').trim().slice(0, 255)
 
   if (!id) return sendValidationError(res, 'ID de conta invalido.')
   if (!dataVencimento) return sendValidationError(res, 'Data de vencimento invalida.')
@@ -783,12 +778,12 @@ app.patch('/api/contas/:id', async (req, res) => {
 
   try {
     const coordId = getCoordId(req)
-    const whereExtra = coordId ? ' AND coordenacao_id = $4' : ''
-    const params = coordId ? [dataVencimento, valor, id, coordId] : [dataVencimento, valor, id]
+    const whereExtra = coordId ? ' AND coordenacao_id = $5' : ''
+    const params = coordId ? [dataVencimento, valor, descricao || null, id, coordId] : [dataVencimento, valor, descricao || null, id]
 
     const result = await pool.query(
-      `UPDATE contas_receber SET data_vencimento = $1, valor = $2 WHERE id = $3${whereExtra}
-       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo`,
+      `UPDATE contas_receber SET data_vencimento = $1, valor = $2, descricao = $3 WHERE id = $4${whereExtra}
+       RETURNING id, linha_id, cliente_id, valor, data_vencimento, status, tipo, descricao`,
       params
     )
 

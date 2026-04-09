@@ -235,7 +235,6 @@ function Homepage({ usuario, onLogout }: HomepageProps) {
               <ContasTab
                 contasFiltradas={contasPaginadas.items}
                 clientes={clientes}
-                linhas={linhas}
                 buscaContas={buscaContas}
                 onBuscaContasChange={setBuscaContas}
                 onCriarConta={criarConta}
